@@ -4,7 +4,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 # -- Path setup --------------------------------------------------------------
-import os, sys 
+import os, sys
+from importlib.metadata import version as _pkg_version
 sys.path.insert(0, os.path.abspath("../../src/"))
 
 # -- Project information -----------------------------------------------------
@@ -13,6 +14,8 @@ sys.path.insert(0, os.path.abspath("../../src/"))
 project = 'aiida_chemshell'
 copyright = '2025, Dr. Benjamin T. Speake'
 author = 'Dr. Benjamin T. Speake'
+release = _pkg_version("aiida-chemshell")
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
