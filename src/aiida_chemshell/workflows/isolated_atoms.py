@@ -21,6 +21,9 @@ class IsolatedAtomicEnergiesWorkChain(WorkChain):
         spec.expose_inputs(
             ChemShellCalculation, include=("structure", "qm_parameters", "code")
         )
+        spec.expose_inputs(
+            ChemShellCalculation, include=("metadata"), namespace="chemsh"
+        )
 
         spec.output(
             "atom_energies",
@@ -65,6 +68,7 @@ class IsolatedAtomicEnergiesWorkChain(WorkChain):
                 "structure": structure,
                 "qm_parameters": self.inputs.qm_parameters,
                 "code": self.inputs.code,
+                "metadata": self.inputs.chemsh.metadata,
             }
             future = self.submit(ChemShellCalculation, **inputs)
             future.description = f"Single point energy for {atom_symbol} atom."
