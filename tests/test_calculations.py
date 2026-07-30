@@ -9,7 +9,7 @@ from aiida_chemshell.calculations.base import ChemShellCalculation
 
 def test_sp_calculation_qm_hf(chemsh_code, get_test_data_file):
     """HF based single point test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file()
     builder.qm_parameters = Dict({"theory": "PySCF", "method": "HF"})
@@ -57,7 +57,7 @@ def test_sp_calculation_qm_hf(chemsh_code, get_test_data_file):
 
 def test_sp_calculation_qm_dft(chemsh_code, get_test_data_file, water_structure_object):
     """DFT based single point test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = water_structure_object
     builder.qm_parameters = Dict(
@@ -95,7 +95,7 @@ def test_sp_calculation_qm_dft(chemsh_code, get_test_data_file, water_structure_
 
 def test_sp_calculation_dlpoly(chemsh_code, get_test_data_file):
     """MM based single point test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file("butanol.cjson")
     builder.mm_parameters = Dict({"theory": "DL_POLY"})
@@ -120,7 +120,7 @@ def test_sp_calculation_dlpoly(chemsh_code, get_test_data_file):
 
 def test_sp_calculation_qmmm(chemsh_code, get_test_data_file):
     """QM/MM based single point test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file("h2o_dimer.cjson")
     builder.calculation_parameters = Dict({"gradients": True})
@@ -147,12 +147,12 @@ def test_sp_calculation_qmmm(chemsh_code, get_test_data_file):
     )
 
 
-def test_opt_calculation_qm_dft(chemsh_code, get_test_data_file):
+def test_opt_calculation_qm(chemsh_code, get_test_data_file):
     """QM based geometry optimisation test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file("water.cjson")
-    builder.qm_parameters = Dict({"theory": "PySCF", "method": "DFT", "basis": "3-21G"})
+    builder.qm_parameters = Dict({"theory": "PySCF", "method": "hf", "basis": "3-21G"})
     builder.optimisation_parameters = Dict({})
 
     results, node = run.get_node(builder)
@@ -173,7 +173,7 @@ def test_opt_calculation_qm_dft(chemsh_code, get_test_data_file):
     assert "Optimised structure" in results.get("optimised_structure").description
 
     # eref = -75.951248996895
-    eref = -75.951248407932
+    eref = -75.585959742723
     assert abs(results.get("energy") - eref) < 1e-8, (
         "Incorrect energy result for PySCF based optimisation calculation."
     )
@@ -189,8 +189,13 @@ def test_opt_calculation_qm_dft(chemsh_code, get_test_data_file):
         "Optimisation path energies entry missing."
     )
 
-    assert optimisation_path.get_shape("energies")[0] == 7, (
+    assert optimisation_path.get_shape("energies")[0] == 5, (
         "Incorrect number of entries for the optimisation_path energies."
+    )
+
+    e_0_ref = -75.58528778
+    assert abs(optimisation_path.get_array("energies")[0] - e_0_ref) < 1e-7, (
+        "Incorrect initial energy in optimisation_path energy series."
     )
 
     assert abs(optimisation_path.get_array("energies")[-1] - eref) < 1e-7, (
@@ -200,7 +205,7 @@ def test_opt_calculation_qm_dft(chemsh_code, get_test_data_file):
 
 def test_opt_calculation_dlpoly(chemsh_code, get_test_data_file):
     """MM based geometry optimisation test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file("butanol.cjson")
     builder.mm_parameters = Dict({"theory": "DL_POLY"})
@@ -239,7 +244,7 @@ def test_opt_calculation_dlpoly(chemsh_code, get_test_data_file):
 
 def test_vibrational_calculation(chemsh_code, get_test_data_file):
     """MM based geometry optimisation test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file()
     builder.qm_parameters = Dict({"theory": "PySCF", "method": "hf", "basis": "3-21G"})
@@ -261,7 +266,7 @@ def test_vibrational_calculation(chemsh_code, get_test_data_file):
 
 def test_structure_from_trajectorydata(chemsh_code, water_trajectory_object):
     """DFT based single point test."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = water_trajectory_object
     builder.structure_index = 1
@@ -300,12 +305,16 @@ def test_structure_from_trajectorydata(chemsh_code, water_trajectory_object):
 
 def test_neb_calculation(chemsh_code, get_test_data_file):
     """QM test for neb calculation and second structure input."""
-    code = chemsh_code()
+    code = chemsh_code
     builder = code.get_builder()
     builder.structure = get_test_data_file("h2o_dimer.cjson")
     builder.structure2 = get_test_data_file("h2o_dimer_2.cjson")
     builder.qm_parameters = Dict({"theory": "PySCF", "method": "hf", "basis": "3-21G"})
     builder.optimisation_parameters = Dict({"neb": "frozen"})
+    builder.metadata["options"]["resources"] = {
+        "num_machines": 1,
+        "num_mpiprocs_per_machine": 2,
+    }
 
     results, node = run.get_node(builder)
 
@@ -344,35 +353,3 @@ def test_neb_calculation(chemsh_code, get_test_data_file):
     )
 
     return
-
-
-# def test_opt_calculation_qmmm(chemsh_code, get_test_data_file):
-#     """QM/MM geometry optimisation test."""
-#     code = chemsh_code()
-#     builder = code.get_builder()
-#     builder.structure = get_test_data_file("h2o_dimer.cjson")
-#     builder.qm_parameters = Dict({"theory": "PySCF", "method": "HF"})
-#     builder.force_field_file = get_test_data_file("h2o_dimer.ff")
-#     # There seems to be a bug when running this with DL_POLY???
-#     builder.mm_parameters = Dict({"theory": "DL_POLY"})
-#     builder.qmmm_parameters = Dict({"qm_region": [0, 1, 2]})
-
-#     builder.optimisation_parameters = Dict({})
-
-#     results, node = run.get_node(builder)
-
-#     assert node.is_finished_ok, "CalcJob failed for `test_OptCalculation_qmmm`"
-
-#     assert "Geometry_Optimisation" in node.process_label
-#     assert "QM/MM" in node.process_label
-
-#     ofiles = results.get("retrieved").list_object_names()
-#     assert ChemShellCalculation.FILE_STDOUT in ofiles
-#     assert ChemShellCalculation.FILE_RESULTS in ofiles
-
-#     # eref = -75.599224873736
-#     eref = -75.59922485546
-
-#     assert (abs(results.get("energy") - eref)) < 1e-8, (
-#         "Incorrect energy result for QM/MM based SP calculation."
-#     )
