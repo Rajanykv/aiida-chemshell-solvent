@@ -37,6 +37,7 @@ Source = "https://github.com/stfc/aiida-chemshell"
 "chemshell.opt" = "aiida_chemshell.workflows.optimisation:GeometryOptimisationWorkChain"
 "chemshell.atomic_energies" = "aiida_chemshell.workflows.isolated_atoms:IsolatedAtomicEnergiesWorkChain"
 "chemshell.batch" = "aiida_chemshell.workflows.batch_calculation:BatchProcessWorkChain"
+"chemshell.solvation" = "aiida_chemshell.workflows.solvation:SolvationWorkChain"
 
 [tool.setuptools.packages.find]
 where = ["src"]

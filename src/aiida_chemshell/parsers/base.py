@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy
 from aiida.common import ModificationNotAllowed
 from aiida.engine import ExitCode
-from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData
+from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List
 from aiida.parsers.parser import Parser
 
 from aiida_chemshell.calculations.base import ChemShellCalculation
@@ -32,6 +32,12 @@ class ChemShellParser(Parser):
         # Extract the final energy
         try:
             self.out("energy", Float(results["energy"][0], label="Final SCF Energy"))
+            #self.logger.info("info:rajany testing") #ignored
+            #self.logger.warning("warning:rajany testing") #printed
+            #self.logger.error("error:rajany testing") #printed
+            #self.logger.debug("debug:rajany testing") #ignored
+            #self.logger.critical("critical:rajany testing")#printed
+
         except (KeyError, ValueError):
             return self.exit_codes.ERROR_MISSING_FINAL_ENERGY
         except ModificationNotAllowed as e:
@@ -67,6 +73,29 @@ class ChemShellParser(Parser):
                         )
                         grad_data.set_array("hessian", hessian)
                         self.out("gradients", grad_data)
+
+        if "chargefitting_parameters" in self.node.inputs:
+            if ChemShellCalculation.FILE_CHARGES in self.retrieved.list_object_names():
+                descrip = "Charges fitted from a ChemShell ESP charge fitting"
+                input_pk = self.node.inputs.structure.pk
+                descrip += f" of node {input_pk}"
+                if isinstance(self.node.inputs.structure, SinglefileData):
+                    input_fname = self.node.inputs.structure.filename
+                    descrip += f" ({input_fname})"
+                # Store the charges structure file
+                charges = {}
+                with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "r") as f:
+                    charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
+                    self.out( "fitted_charges", List(charges, label="Fitted charges"))
+                    self.out("charges_file", SinglefileData(
+                            file=f,
+                            filename=ChemShellCalculation.FILE_CHARGES,
+                            label="Plain text Charges File",
+                            description=descrip,
+                        ),
+                    )
+            else:
+                return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:

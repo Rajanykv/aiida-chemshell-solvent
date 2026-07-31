@@ -11,6 +11,7 @@ from aiida.orm import (
     SinglefileData,
     StructureData,
     TrajectoryData,
+    List,
 )
 
 from aiida_chemshell.units import UnitsConverter
@@ -35,6 +36,7 @@ class ChemShellCalculation(CalcJob):
     FILE_RESULTS = "result.json"
     FILE_TRJPTH = "path.xyz"
     FILE_TRJFRC = "path_force.xyz"
+    FILE_CHARGES = "fitted_charges.txt"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -98,6 +100,16 @@ class ChemShellCalculation(CalcJob):
                 "task. If this input is provided, a geometry optimisation task will be "
                 "configured and added to this job."
             ),
+        )
+        ## Charge fitting parameters
+        spec.input(
+            "chargefitting_parameters",
+            valid_type=Dict,
+            validator=cls.validate_esp_parameters,
+            required=False,
+            help=(
+                "A dictionary of parameters for the Chemshell Charge fitting task."
+            )
         )
 
         ## Theory objects parameters
@@ -183,6 +195,22 @@ class ChemShellCalculation(CalcJob):
             valid_type=ArrayData,
             required=False,
             help="The calculated vibrational modes of the system.",
+        )
+        spec.output(
+            "fitted_charges",
+            valid_type=List,
+            required=False,
+            help=(
+                "The fitted charge at each atom once the charge fitting task was completed."
+            ),
+        )
+        spec.output(
+            "charges_file",
+            valid_type=SinglefileData,
+            required=False,
+            help=(
+                "File containing the fitted charge against each atom once the charge fitting task was completed."
+            ),
         )
 
         # Validate inputs namespace
@@ -275,7 +303,14 @@ class ChemShellCalculation(CalcJob):
                 "gradients or hessian for the given task."
             ),
         )
-
+        spec.exit_code(
+            305,
+            "ERROR_CHARGES_NOT_FOUND",
+            message=(
+                "ChemShell calculation failed to compute the requested "
+                "esp fitted charges."
+            ),
+        )
         return
 
     @classmethod
@@ -664,6 +699,79 @@ class ChemShellCalculation(CalcJob):
         return None
 
     @classmethod
+    def get_valid_esp_parameters(cls) -> dict[str:type]:
+        """
+        Return a tuple of valid parameter keys for the Chemshell Charge fitting calculation.
+
+        Returns
+        -------
+        validKeys : dict[str: type]
+            A tuple of valid parameter keys for the ChemShell Charge fitting calculation.
+        """
+        return {
+                'alpha'      : float,
+                'a'          : float,
+                'b'          : float,
+                'conserve'   : 10,
+                'constraints': list,
+                'frozen'     : list,
+                'initial'    : list,
+                'maxcycles'  : int,
+                'maxinners'  : int,
+                'method'     : str,
+                'nlayers'    : int,
+                'npoints'    : int,
+                'tol_inner'  : float,
+                'tolerance'  : float,
+                'type'       : str,
+                'vdw_scale'  : float,
+                'vdw_incr'   : float,
+        }
+    @classmethod
+    def validate_esp_parameters(cls, value: Dict | None, _) -> str | None:
+        """
+        Validate the Charge Fitting parameters.
+
+        Parameters
+        ----------
+        value : Dict | None
+            A dictionary of parameters for the ChemShell Charge fitting calculation.
+            If None, no validation is performed.
+
+        Returns
+        -------
+        str | None
+            Returns None if the parameters are valid, otherwise returns an error
+            message string.
+        """
+        valid_keys = cls.get_valid_esp_parameters()
+
+        # Check for valid parameter keys
+        invalid_keys = set(value.keys()).difference(set(valid_keys.keys()))
+        if invalid_keys:
+            return (
+                "The following parameter keys are invalid: "
+                f"{', '.join(invalid_keys):s}. Valid keys are: "
+                f"{', '.join(valid_keys.keys()):s}"
+            )
+
+        # Check for valid parameter types
+        for key, val in value.items():
+            if not isinstance(val, valid_keys[key]):
+                return (
+                    f"The parameter '{key:s}' must be of type "
+                    f"{valid_keys[key].__name__:s}."
+                )
+
+        # Check for valid parameter values if value options are restricted
+        if "method" in value.keys():
+            method = value.get("method").upper()
+            if method not in ["ESP", "RESP"]:
+                return f"The specified method key ('{method:s}') is not valid."
+
+        return None
+
+    @classmethod
     def get_qm_theory_key(cls, theory: ChemShellQMTheory) -> str:
         """
         Get the key for the QM theory interface in ChemShell.
@@ -768,6 +876,8 @@ class ChemShellCalculation(CalcJob):
         else:
             theory_key = "_(MM)"
 
+        if "chargefitting_parameters" in node.inputs:
+            return "ChemShell_Charge_Fitting" + theory_key
         if "optimisation_parameters" in node.inputs:
             if node.inputs.optimisation_parameters.get("thermal", False):
                 return "ChemShell_Vibrational_Frequencies" + theory_key
@@ -892,7 +1002,20 @@ class ChemShellCalculation(CalcJob):
 
         ## Setup Task objects
 
-        if "optimisation_parameters" in self.inputs:
+        if "chargefitting_parameters" in self.inputs:
+            # Run a Charge fitting task
+            script += "from chemsh import ChargeFitting\n"
+            fit_str = f"job = ChargeFitting(theory = qmtheory"
+            for key in self.inputs.chargefitting_parameters.keys():
+                if isinstance(self.inputs.chargefitting_parameters.get(key), str):
+                    fit_str += ", " + key + "='"
+                    fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
+                else:
+                    fit_str += ", " + key + "="
+                    fit_str += str(self.inputs.chargefitting_parameters.get(key))
+            script += fit_str + ")\n"
+
+        elif "optimisation_parameters" in self.inputs:
             # Run a geometry optimisation using DL_FIND
             script += "from chemsh import Opt\n"
             opt_str = f"job = Opt(theory={theory_str:s}"
@@ -930,6 +1053,11 @@ class ChemShellCalculation(CalcJob):
                 "perpendicular",
             ]:
                 script += f'structure.save("{ChemShellCalculation.FILE_DLFIND}")\n'
+
+        if "chargefitting_parameters" in self.inputs:
+            script += f"from numpy import column_stack, savetxt\n"
+            script += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
+            script += f"savetxt('{ChemShellCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')"
 
         return script
 
@@ -1053,5 +1181,8 @@ class ChemShellCalculation(CalcJob):
             ]:
                 calc_info.retrieve_temporary_list.append("nebinfo")
                 calc_info.retrieve_temporary_list.append("nebpath.xyz")
+
+        if "chargefitting_parameters" in self.inputs:
+            calc_info.retrieve_list.append(f"{ChemShellCalculation.FILE_CHARGES}")
 
         return calc_info
