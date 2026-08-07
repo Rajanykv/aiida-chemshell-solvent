@@ -22,7 +22,7 @@ class IsolatedAtomicEnergiesWorkChain(WorkChain):
             ChemShellCalculation, include=("structure", "qm_parameters", "code")
         )
         spec.expose_inputs(
-            ChemShellCalculation, include=("metadata"), namespace="chemsh"
+            ChemShellCalculation, include=("metadata",), namespace="chemsh"
         )
 
         spec.output(
