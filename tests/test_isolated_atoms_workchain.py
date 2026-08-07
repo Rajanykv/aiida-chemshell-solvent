@@ -40,9 +40,7 @@ def test_metadata_options_forwarded_to_subcalculations(
     process.atom_energies()
 
     # Water contains two unique atom types (O and H).
-    assert process.submit.call_count == 2, (
-        "Incorrect number of sub processes created."
-    )
+    assert process.submit.call_count == 2, "Incorrect number of sub processes created."
     for call in process.submit.call_args_list:
         options = call.kwargs["metadata"]["options"]
         assert dict(options["resources"]) == resources, (
