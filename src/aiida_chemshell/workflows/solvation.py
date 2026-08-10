@@ -40,12 +40,23 @@ class SolvationWorkChain(WorkChain):
            )
 
         ## Workflow ##
+        #rajany todo add full workflow
         spec.outline(
+            #cls.validate_inputs,
             cls.charge_fit,
             cls.result,
         )
 
         return
+
+   # def validate_inputs(self):
+   #     """Validate the inputs provided to the WorkChain."""
+   #     has_trajectory = "trajectory" in self.inputs
+   #     has_structures = "structures" in self.inputs
+   #     has_files = "structure_files" in self.inputs
+   #     if not has_trajectory and not has_structures and not has_files:
+   #         return self.exit_codes.ERROR_NO_INPUTS
+   #     return None
 
     def charge_fit(self):
         """Perform the charge fitting."""
