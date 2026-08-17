@@ -56,7 +56,7 @@ class ChemShellCalculation(CalcJob):
             required=True,
             help=(
                 "The input structure for the ChemShell calculation either contained "
-                "within an '.xyz', '.pun' or '.cjson' file or as a StructureData "
+                "within an '.xyz', '.pun', '.pqr' or '.cjson' file or as a StructureData "
                 "instance."
             ),
         )
@@ -76,7 +76,7 @@ class ChemShellCalculation(CalcJob):
             required=False,
             help=(
                 "An additional input structure for the ChemShell calculation either"
-                "contained within an '.xyz', '.pun' or '.cjson' file or as a "
+                "contained within an '.xyz', '.pun', '.pqr' or '.cjson' file or as a "
                 "StructureData instance. This is used in jobs such as NEB "
                 "optimisations as the final structure."
             ),
@@ -349,10 +349,10 @@ class ChemShellCalculation(CalcJob):
             Returns `None` if no error is found otherwise returns an error message
         """
         if isinstance(value, SinglefileData):
-            if value.filename[-4:] not in [".xyz", ".pun"]:
+            if value.filename[-4:] not in [".xyz", ".pun", ".pqr"]:
                 if value.filename[-6:] != ".cjson":
                     return (
-                        "Structure file must be either an '.xyz', '.pun' or "
+                        "Structure file must be either an '.xyz', '.pun', '.pqr', or "
                         "'.cjson' formatted structure file."
                     )
 

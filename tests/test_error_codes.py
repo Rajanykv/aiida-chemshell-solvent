@@ -104,7 +104,7 @@ def test_structure_validation(generate_calcjob, get_test_data_file):
         generate_calcjob(ChemShellCalculation, inputs)
     except ValueError as e:
         assert (
-            "Structure file must be either an '.xyz', '.pun' or "
+            "Structure file must be either an '.xyz', '.pun', '.pqr' or "
             "'.cjson' formatted structure file."
         ) in str(e)
     except Exception as e:
