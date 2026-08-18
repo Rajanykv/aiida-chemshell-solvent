@@ -38,6 +38,7 @@ Source = "https://github.com/stfc/aiida-chemshell"
 "chemshell.atomic_energies" = "aiida_chemshell.workflows.isolated_atoms:IsolatedAtomicEnergiesWorkChain"
 "chemshell.batch" = "aiida_chemshell.workflows.batch_calculation:BatchProcessWorkChain"
 "chemshell.solvation" = "aiida_chemshell.workflows.solvation:SolvationWorkChain"
+"chemshell.chargefit" = "aiida_chemshell.workflows.chargefit:ChargefitWorkChain"
 
 [tool.setuptools.packages.find]
 where = ["src"]
