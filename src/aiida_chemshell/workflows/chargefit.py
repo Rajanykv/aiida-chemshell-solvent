@@ -38,7 +38,7 @@ class ChargeFitWorkChain(WorkChain):
 
         ## Workflow ##
         spec.outline(
-            cls.validate_inputs,
+            #cls.validate_inputs,
             cls.charge_fit,
             cls.result,
         )
@@ -65,7 +65,14 @@ class ChargeFitWorkChain(WorkChain):
                 }
             )
         if "chargefitting_parameters" not in inputs:
-            inputs["chargefitting_parameters"] = Dict({})
+            inputs["chargefitting_parameters"] = Dict({
+              "method" : "resp",
+              "npoints" : 50,
+              "type" : "shell",
+              "vdw_scale" : 1.5,
+              "nlayers" : 1,
+              "tolerance" : 1e-12,
+              })
 
         future = self.submit(ChemShellCalculation, **inputs)
         future.label = ChemShellCalculation.default_process_label(future)
