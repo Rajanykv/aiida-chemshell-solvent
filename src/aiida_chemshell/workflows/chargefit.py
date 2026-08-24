@@ -44,14 +44,6 @@ class ChargeFitWorkChain(WorkChain):
         )
         return
 
-    def validate_inputs(self):
-        """Validate the inputs provided to the WorkChain."""
-        has_structures = "structures" in self.inputs
-        has_files = "structure_files" in self.inputs
-        if not has_structures and not has_files:
-            return self.exit_codes.ERROR_NO_INPUTS
-        return None
-
     def charge_fit(self):
         """Perform the charge fitting."""
         inputs = self.exposed_inputs(ChemShellCalculation, namespace="chemsh")

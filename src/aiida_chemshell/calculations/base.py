@@ -1057,7 +1057,7 @@ class ChemShellCalculation(CalcJob):
         if "chargefitting_parameters" in self.inputs:
             script += f"from numpy import column_stack, savetxt\n"
             script += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
-            script += f"savetxt('{ChemShellCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')"
+            script += f"savetxt('{ChemShellCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
 
         return script
 

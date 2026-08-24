@@ -84,7 +84,7 @@ class ChemShellParser(Parser):
                     descrip += f" ({input_fname})"
                 # Store the charges structure file
                 charges = {}
-                with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "r") as f:
+                with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
                     charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
                     self.out( "fitted_charges", List(charges, label="Fitted charges"))
                     self.out("charges_file", SinglefileData(

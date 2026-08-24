@@ -27,6 +27,7 @@ Source = "https://github.com/stfc/aiida-chemshell"
 
 [project.entry-points."aiida.calculations"]
 "chemshell" = "aiida_chemshell.calculations.base:ChemShellCalculation"
+"chemsh.solvation" = "aiida_chemshell.calculations.solvation:SolventCalculation"
 
 
 [project.entry-points."aiida.parsers"]
