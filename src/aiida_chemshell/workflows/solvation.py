@@ -55,7 +55,7 @@ class SolvationWorkChain(WorkChain):
             cls.charge_fit,
             cls.validate_inputs_2,
             #cls.setup_qmmm,
-            cls.classical_md,
+            #cls.classical_md,
             cls.result,
         )
 
@@ -73,23 +73,26 @@ class SolvationWorkChain(WorkChain):
         has_file = "structure" in self.inputs.chemsh
         has_box = "solvent_box" in self.inputs.chemsh
         #if not has_files and not has_box:
-        if not has_box:
-            return self.exit_codes.ERROR_NO_INPUTS
+        #if not has_box:
+        #    return self.exit_codes.ERROR_NO_INPUTS
         return None
 
     def qm_optimise(self):
         """Perform the geometry optimisation."""
-        self.inputs.chemsh.do_charge_fit = Bool(False)
-        self.inputs.chemsh.do_md_equillibrate = Bool(False)
 
         inputs = self.exposed_inputs(SolventCalculation, namespace="chemsh")
+
+        inputs["do_charge_fit"] =  Bool(False)
+        inputs["do_init_optimise"] = Bool(True)
+        inputs["do_opt_equillibrate"] = Bool(False)
+        inputs["do_md_equillibrate"] = Bool(False)
         if "qm_parameters" not in inputs:
             inputs["qm_parameters"] = Dict(
                 {
-                    "theory": "NWChem",
-                    "method": "dft",
-                    "functional": "B3LYP",
-                    "basis": "cc-pvdz",
+                "theory": "NWChem",
+                "method": "dft",
+                "functional": "B3LYP",
+                "basis": "cc-pvdz",
                 }
             )
         if "optimisation_parameters" not in inputs:
@@ -104,12 +107,6 @@ class SolvationWorkChain(WorkChain):
 
     def energy(self):
         """Perform a single point energy calculation on the optimised structure."""
-
-
-        self.inputs.chemsh.do_charge_fit = Bool(False)
-        self.inputs.chemsh.do_init_optimise  = Bool(False)
-        self.inputs.chemsh.do_opt_equillibrate = Bool(False)
-        self.inputs.chemsh.do_md_equillibrate = Bool(False)
 
         if 'optimise' in self.ctx and self.ctx.optimise.is_finished_ok:
             structure=self.ctx.optimise.outputs.optimised_structure
@@ -126,10 +123,10 @@ class SolvationWorkChain(WorkChain):
                 )["metadata"],
                 "structure": structure,
                 "qm_parameters": qm_parameters,
-                "do_charge_fit" : self.exposed_inputs(SolventCalculation, namespace="chemsh")["do_charge_fit"],
-                "do_init_optimise" : self.exposed_inputs(SolventCalculation, namespace="chemsh")["do_init_optimise"],
-                "do_opt_equillibrate" : self.exposed_inputs(SolventCalculation, namespace="chemsh")["do_opt_equillibrate"],
-                "do_md_equillibrate" : self.exposed_inputs(SolventCalculation, namespace="chemsh")["do_md_equillibrate"],
+                "do_charge_fit" :  Bool(False),
+                "do_init_optimise" : Bool(False),
+                "do_opt_equillibrate" : Bool(False),
+                "do_md_equillibrate" : Bool(False),
         }
 
         future = self.submit(SolventCalculation, **inputs)
@@ -144,17 +141,16 @@ class SolvationWorkChain(WorkChain):
     def charge_fit(self):
         """Perform the charge fitting."""
 
-        self.inputs.chemsh.do_charge_fit = Bool(True)
-        self.inputs.chemsh.do_init_optimise  = Bool(False)
-        self.inputs.chemsh.do_opt_equillibrate = Bool(False)
-        self.inputs.chemsh.do_md_equillibrate = Bool(False)
-
         inp = self.exposed_inputs(SolventCalculation, namespace="chemsh")
         inputs = {
                 "code": inp["code"],
                 "metadata": inp["metadata"],
                 "structure": self.ctx.energy.inputs.structure,
                 "qm_parameters": self.ctx.energy.inputs.qm_parameters,
+                "do_charge_fit" :  Bool(True),
+                "do_init_optimise" : Bool(False),
+                "do_opt_equillibrate" : Bool(False),
+                "do_md_equillibrate" : Bool(False),
         }
 
         if "chargefitting_parameters" not in inp:
@@ -170,12 +166,6 @@ class SolvationWorkChain(WorkChain):
 
             inputs["chargefitting_parameters"] = inp["chargefitting_parameters"]
 
-        #rajany -check
-        inputs["do_md_equillibrate"] = inp["do_md_equillibrate"]
-        inputs["do_init_optimise"] = inp["do_init_optimise"]
-        inputs["do_opt_equillibrate"] = inp["do_init_optimise"]
-        inputs["do_charge_fit"] = inp["do_init_optimise"]
-
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
@@ -185,13 +175,16 @@ class SolvationWorkChain(WorkChain):
 
     def classical_md(self):
         """Perform the classical MD equillibration step."""
-        if not self.inputs.chemsh.do_md_equillibrate:
-            return
+
         inp = self.exposed_inputs(SolventCalculation, namespace="chemsh")
         inputs = {
                 "code": inp["code"],
                 "metadata": inp["metadata"],
                 "structure": inp["solvent_box"],
+                "do_charge_fit" :  Bool(False),
+                "do_init_optimise" : Bool(False),
+                "do_opt_equillibrate" : Bool(False),
+                "do_md_equillibrate" : Bool(True),
         }
 
         if "md_parameters" not in inp:
@@ -206,10 +199,6 @@ class SolvationWorkChain(WorkChain):
         else:
 
             inputs["md_parameters"] = inp["md_parameters"]
-
-        inputs.do_charge_fit = Bool(False)
-        inputs.do_init_optimise = Bool(False)
-        inputs.do_opt_equillibrate= Bool(False)
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)

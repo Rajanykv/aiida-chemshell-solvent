@@ -44,28 +44,28 @@ class SolventCalculation(ChemShellCalculation):
             "do_init_optimise",
              valid_type = Bool,
              default=lambda: Bool(True),
-             required = False,
+             required = True,
              help = "Whether to do optimisation on the initial structure. (default True)"
         )
         spec.input(
             "do_charge_fit",
              valid_type = Bool,
              default=lambda: Bool(True),
-             required = False,
+             required = True,
              help = "Whether to do a QM RESP charge fitting(default True)"
         )
         spec.input(
             "do_md_equillibrate",
              valid_type = Bool,
              default=lambda: Bool(True),
-             required = False,
+             required = True,
              help = "Whether to do an MD equillibration step (default True)"
         )
         spec.input(
             "do_opt_equillibrate",
              valid_type = Bool,
              default=lambda: Bool(True),
-             required = False,
+             required = True,
              help = "Whether to do an optimisation instead of MD equillibration(default False)"
         )
 
@@ -108,7 +108,7 @@ class SolventCalculation(ChemShellCalculation):
         #    return self.exit_codes.ERROR_NO_INPUTS
         return None
 
-    #rajany todo-
+    #rajany todo-retain only necessary
     @classmethod
     def get_valid_md_parameters(cls) -> dict[str:type]:
         """
@@ -228,14 +228,16 @@ class SolventCalculation(ChemShellCalculation):
         str
             The process label based on what inputs have been provided.
         """
-        if node.inputs.do_opt_equillibrate:
+        if node.inputs.do_opt_equillibrate.value:
             job_str = "_OptStep"
-        if node.inputs.do_init_optimise:
+        elif node.inputs.do_init_optimise.value:
             job_str = "_OptStep"
-        if node.inputs.do_charge_fit:
-            job_str = "_ESPStep"
-        if node.inputs.do_md_equillibrate:
+        elif node.inputs.do_charge_fit.value:
+            job_str = "_ESPChargeStep"
+        elif node.inputs.do_md_equillibrate.value:
             job_str = "_MDStep"
+        else:
+            job_str = "_SPStep"
         return "Chemshell_Solvation" + job_str
 
     def chemsh_script_generator(self) -> str:
@@ -302,7 +304,7 @@ class SolventCalculation(ChemShellCalculation):
         script_opt = ""
         if "optimisation_parameters" in self.inputs:
             # Run a geometry optimisation using DL_FIND
-            if self.inputs.do_init_optimise or self.inputs.do_opt_equillibrate:
+            if self.inputs.do_init_optimise.value or self.inputs.do_opt_equillibrate.value:
 
                 script_opt += "from chemsh import Opt\n"
                 opt_str = f"job = Opt(theory=qmtheory"
@@ -322,28 +324,10 @@ class SolventCalculation(ChemShellCalculation):
                         ]):
                     script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
 
-
-        # Perform a single point energy calculation (default calculation type)
-        script += "from chemsh import SP\n"
-        if "calculation_parameters" not in self.inputs:
-            # Assign default values if none are given
-            self.inputs.calculation_parameters = Dict(dict={})
-
-
-        theory_str = "qmtheory"
-        script_qm = ""
-        # Runs a QM single point energy calculation
-        script_qm += f"job = SP(theory={theory_str:s}, "
-        grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
-        script_qm += f"gradients={grad_str:s}, "
-        hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
-        script_qm += f"hessian={hess_str:s})\n"
-
-        script_qm += "job.run()\njob.result.save()\n"
-        script += script_qm
+                return script
 
         script_ch = ""
-        if "chargefitting_parameters" in self.inputs and self.inputs.do_charge_fit:
+        if "chargefitting_parameters" in self.inputs and self.inputs.do_charge_fit.value:
             # Run a Charge fitting task
             script_ch += "from chemsh import ChargeFitting\n"
             fit_str = f"job = ChargeFitting(theory = qmtheory"
@@ -360,6 +344,7 @@ class SolventCalculation(ChemShellCalculation):
             script_ch += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
             script_ch += f"savetxt('{SolventCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
             script    += script_ch
+            return script
 
         # Create Solvent box structure object if requested
         if "solvent_box" in self.inputs:
@@ -370,10 +355,8 @@ class SolventCalculation(ChemShellCalculation):
             print(fname)
             script += f"box = Fragment(coords='{fname:s}')\n"
 
-        ## Setup Theory objects
-
         # Perform an MD
-        if "mm_parameters" in self.inputs and self.inputs.do_md_equillibrate:
+        if "mm_parameters" in self.inputs and self.inputs.do_md_equillibrate.value:
             # Creates a molecular mechanics Theory object
             mm_theory = ChemShellMMTheory[
                 self.inputs.mm_parameters.get("theory").upper()
@@ -436,7 +419,27 @@ class SolventCalculation(ChemShellCalculation):
             script_md += "job.run()\njob.result.save()\n"
             script += script_md
 
+            return script
+ # Perform a single point energy calculation (default calculation type)
+        script += "from chemsh import SP\n"
+        if "calculation_parameters" not in self.inputs:
+            # Assign default values if none are given
+            self.inputs.calculation_parameters = Dict(dict={})
+
+
+        theory_str = "qmtheory"
+        script_qm = ""
+        # Runs a QM single point energy calculation
+        script_qm += f"job = SP(theory={theory_str:s}, "
+        grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
+        script_qm += f"gradients={grad_str:s}, "
+        hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
+        script_qm += f"hessian={hess_str:s})\n"
+
+        script_qm += "job.run()\njob.result.save()\n"
+        script += script_qm
         return script
+
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         """
         Prepare the ChemShell calculation for submission.
@@ -454,7 +457,7 @@ class SolventCalculation(ChemShellCalculation):
         """
 
         #rajany diag
-        inputs_dict = [self.inputs.do_opt_equillibrate, self.inputs.do_init_optimise, self.inputs.do_charge_fit, self.inputs.do_md_equillibrate]  
+        inputs_dict = [self.inputs.do_opt_equillibrate.value, self.inputs.do_init_optimise.value, self.inputs.do_charge_fit.value, self.inputs.do_md_equillibrate.value]
         with folder.open('inputs.dat', 'w') as f:
             f.write(f"INPUTS = \n{inputs_dict}\n")
         # Create the ChemShell input script
@@ -532,6 +535,14 @@ class SolventCalculation(ChemShellCalculation):
                     self.inputs.force_field_file.uuid,
                     self.inputs.force_field_file.filename,
                     self.inputs.force_field_file.filename,
+                )
+            )
+        if "solvent_box" in self.inputs:
+            calc_info.local_copy_list.append(
+                (
+                    self.inputs.solvent_box.uuid,
+                    self.inputs.solvent_box.filename,
+                    self.inputs.solvent_box.filename,
                 )
             )
 
