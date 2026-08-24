@@ -1,0 +1,1 @@
+docker cp /home/rajany/chemsh-nwchem-esp/tests/charges/nwchem/h2o_bq.pun  myaiidalab-chemshell:/home/jovyan/work/h2o_bq.pun

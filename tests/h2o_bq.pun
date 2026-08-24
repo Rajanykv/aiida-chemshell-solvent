@@ -1,0 +1,14 @@
+block = point_group records = 1
+ c1         0
+block = title records = 1
+H2O molecule with point charges
+block = fragment records = 0
+block = coordinates records =     3 unit = au \
+ f_format = "(2x,a8,3(3x,f22.14))"
+  o     0.0000000000   0.0000000000   0.0000000000
+  h     0.0000000000  -1.4774185392   1.0830805621
+  h    -0.0000000000   1.4774185392   1.0830805621
+block = point_charges records =     3 unit = au
+  bq   -5.4070034448  -0.0000000000  -3.4591957034        -0.796
+  bq   -3.8163508278  -0.0000000000  -2.6576920939         0.398
+  bq   -5.0432696360  -0.0000000000  -5.2016891727         0.398
