@@ -5,9 +5,9 @@ from aiida import load_profile
 from aiida.plugins import WorkflowFactory
 """Submit the Solvation WorkChain."""
 builder = WorkflowFactory("chemshell.solvation").get_builder()  # pyright: ignore[reportFunctionMemberAccess]
-builder.chemsh.code = load_code("nwchemchemsh")
+builder.chemsh.code = load_code("nwchemsh2@rajanylaptop")
 #builder.chemsh.structure = SinglefileData(file="/home/jovyan/work/h2o_bq.pun")
-builder.chemsh.structure = SinglefileData(file="/home/rajany/aiida-chemshell-solv22/tests/h2o_bq.pun")
+builder.chemsh.structure = SinglefileData(file="/home/rajany/solventwork/aiida-chemshell-solvent/tests/h2o_bq.pun")
 builder.chemsh.qm_parameters = Dict(
     {
         "theory": "NWChem",
@@ -36,4 +36,6 @@ builder.chemsh.chargefitting_parameters = {
 if builder.chemsh.code.with_mpi is None:
     builder.chemsh.metadata.options.withmpi = True
 node = submit(builder)
+#results, node = run.get_node(builder)
+#print("Final Energy = ", results.get("energy"))
 print(f"Submitted WorkChain PK: {node.pk}")
