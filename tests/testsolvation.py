@@ -5,10 +5,10 @@ from aiida import load_profile
 from aiida.plugins import WorkflowFactory
 """Submit the Solvation WorkChain."""
 builder = WorkflowFactory("chemshell.solvation").get_builder()  # pyright: ignore[reportFunctionMemberAccess]
-builder.chemsh.code = load_code("nwchemsh2@rajanylaptop")
-#builder.chemsh.structure = SinglefileData(file="/home/jovyan/work/h2o_bq.pun")
-builder.chemsh.structure = SinglefileData(file="/home/rajany/solventwork/aiida-chemshell-solvent/tests/h2o_bq.pun")
-builder.chemsh.qm_parameters = Dict(
+builder.code = load_code("chemshdlpolysol@rajanylaptop")
+#builder.structure = SinglefileData(file="/home/jovyan/work/h2o_bq.pun")
+builder.structure = SinglefileData(file="/home/rajany/solventwork/aiida-chemshell-solvent/tests/h2o_bq.pun")
+builder.qm_parameters = Dict(
     {
         "theory": "NWChem",
         "method": "dft",
@@ -17,13 +17,13 @@ builder.chemsh.qm_parameters = Dict(
     }
 )
 
+#Note metadata is in a namespace chemsh. other inputs are not.
 builder.chemsh.metadata.options.resources = {
-    "num_mpiprocs_per_machine": 4,
-    "num_cores_per_machine": 1,
-    "num_machines": 1,
-    "tot_num_mpiprocs": 4
-}
-builder.chemsh.chargefitting_parameters = {
+                                              "tot_num_mpiprocs": 4,}
+
+# "num_mpiprocs_per_machine": 2,"num_machines": 1, }
+#"num_cores_per_machine": 1,
+builder.chargefitting_parameters = Dict({
     'method':'resp', 
     'npoints': 50,
     'type':'shell',
@@ -31,11 +31,12 @@ builder.chemsh.chargefitting_parameters = {
     'nlayers':1, 
     'nlayers':1, 
     'tolerance':1e-12
-    }
+    })
      # Only set ``withmpi`` when the code itself does not declare it.
-if builder.chemsh.code.with_mpi is None:
-    builder.chemsh.metadata.options.withmpi = True
-node = submit(builder)
-#results, node = run.get_node(builder)
+#if builder.code.with_mpi is None:
+#    builder.metadata.options.withmpi = True
+#node = submit(builder)
+#builder.metadata.dry_run = True
+results, node = run.get_node(builder)
 #print("Final Energy = ", results.get("energy"))
 print(f"Submitted WorkChain PK: {node.pk}")

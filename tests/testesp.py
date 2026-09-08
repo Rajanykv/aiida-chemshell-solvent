@@ -19,5 +19,4 @@ builder.metadata.options.resources = {
 }
 #print(run(builder))
 results, node = run.get_node(builder)
-
 print("Final Energy = ", results.get("energy"))

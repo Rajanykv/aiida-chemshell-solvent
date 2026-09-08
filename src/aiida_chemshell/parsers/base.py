@@ -74,6 +74,18 @@ class ChemShellParser(Parser):
                         grad_data.set_array("hessian", hessian)
                         self.out("gradients", grad_data)
 
+        #rajany todo add all needed outputs
+        if "md_parameters" in self.node.inputs:
+            if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
+                descrip = "Snapshots from the Solvation MD run of"
+                input_pk = self.node.inputs.structure.pk
+                input2_pk = self.node.inputs.solvent_box.pk
+                descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
+                folder_node = FolderData()
+                folder_node.copy_tree(self.retrieved, src_path=SolventCalculation.FOLDER_SNAPSHOTS)
+                self.out("snapshots", folder_node)
+            #else:
+            #    return self.exit_codes.ERROR_MD_NOT_COMPLETED
         if "chargefitting_parameters" in self.node.inputs:
             if ChemShellCalculation.FILE_CHARGES in self.retrieved.list_object_names():
                 descrip = "Charges fitted from a ChemShell ESP charge fitting"

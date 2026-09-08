@@ -13,6 +13,7 @@ from aiida.orm import (
     TrajectoryData,
     List,
     Bool,
+    FolderData,
 )
 
 from aiida_chemshell.units import UnitsConverter
@@ -29,6 +30,8 @@ class SolventCalculation(ChemShellCalculation):
       - Geometry optimisation
 
     """
+    FOLDER_SNAPSHOTS = "_snapshots"
+
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
         """
@@ -40,6 +43,7 @@ class SolventCalculation(ChemShellCalculation):
             The AiiDA Process specification object for the job.
         """
         super().define(spec)
+
         spec.input(
             "do_init_optimise",
              valid_type = Bool,
@@ -66,28 +70,69 @@ class SolventCalculation(ChemShellCalculation):
              valid_type = Bool,
              default=lambda: Bool(True),
              required = True,
-             help = "Whether to do an optimisation instead of MD equillibration(default False)"
+             help = "Whether to do an optimisation instead of MD equillibration(default True)"
         )
-
+        #rajany note: only one not added to the chemsh namespace
+        spec.input(
+            "dryrunmd",
+             valid_type = Bool,
+             default=lambda: Bool(True),
+             required = True,
+             help = "Whether to do a dry run with the MD parameters(default True)"
+        )
         spec.input(
             "solvent_box",
             valid_type=(SinglefileData),
-            validator=cls.validate_inputs_2,
+            validator=cls.validate_inputs_solvent,
             required=False,
             help=(
                 "The solvent boxes input structure to be used for the ChemShell solvation"
                 "Choose from the list in format '.pqr' or '.pdb'"
             ),
         )
+        spec.input(
+            "md_parameters",
+            valid_type=Dict,
+            required=False,
+            help="A dictionary of parameters for the ChemShell MD Solvation.",
+        )
 
-        spec.exit_code(
-            306,
-            "ERROR_MD_NOT_FINISHED",
-            message=(
-                "Failed to complete the MD equillibration."
+        #rajany check metadata is not inherited
+        spec.inputs["metadata"]["options"]["resources"].default = {
+            "num_machines": 1,
+            "num_mpiprocs_per_machine": 4,
+        }
+        spec.inputs["metadata"]["options"]["parser_name"].default = "chemshell"
+
+        #rajany todo examine later correct specs
+        spec.output(
+            "snapshots",
+            valid_type=FolderData,
+            required=False,
+            help=(
+                "Snapshots from an MD simulation."
             ),
         )
-        #rajany todo examine later correct inputs
+
+        spec.output(
+            "Final_energy",
+            valid_type=Float,
+            required=True,
+            help="The final energy for the structure.",
+        )
+        spec.output(
+            "Charges_file",
+            valid_type=SinglefileData,
+            required=True,
+            help="The file containing the fitted  charges of atoms.",
+        )
+        spec.output(
+            "Fitted_charges",
+            valid_type=List,
+            required=False,
+            help="The calculated fitted charges for the structure",
+           )
+
         spec.exit_code(
             307,
             "ERROR_NO_INPUTS",
@@ -95,18 +140,31 @@ class SolventCalculation(ChemShellCalculation):
                 "Required Inputs are not provided."
             ),
         )
+        spec.exit_code(
+            308,
+            "ERROR_MD_NOT_FINISHED",
+            message=(
+                "MD snapshots not found. MD run has not completed."
+            ),
+        )
+        spec.exit_code(
+            306,
+            "ERROR_MD_NOT_FINISHED",
+            message=(
+                "Failed to complete the MD equillibration."
+            ),
+        )
+
 
         return
 
-    @classmethod
-    def validate_inputs_2(self):
+    def validate_inputs_solvent(self):
         """Validate the inputs provided to the WorkChain."""
-        has_file = "structure_file" in self.inputs
         has_box = "solvent_box" in self.inputs
-        #if not has_files and not has_box:
-        #if not has_box:
-        #    return self.exit_codes.ERROR_NO_INPUTS
+        if not has_box:
+            return self.exit_codes.ERROR_NO_INPUTS
         return None
+
 
     #rajany todo-retain only necessary
     @classmethod
@@ -119,57 +177,24 @@ class SolventCalculation(ChemShellCalculation):
         validKeys : dict[str: type]
             A tuple of valid parameter keys for the ChemShell Charge fitting calculation.
         """
-        #rajany todo, copied all now. retain only required ones.
+        #rajany todo,
         return {
-                'active'                :[],
-                'boundary'              :'periodic',
-                'constraints'           :[],
-                'dcd'                   :'',
-                'density_variance'      :   0.2,
-                'driver'                :'dl_poly',
-                'ensemble'              :'NPT',
-                'ensemble_method'       :'langevin',
-                'ensemble_barostat_coupling'  : 0.0, # in fs
-                'ensemble_barostat_friction'  : 0.0, # in 1/fs
-                'ensemble_thermostat_coupling': 0.0, # in fs
-                'ensemble_thermostat_friction': 0.0, # in 1/fs
-                'equilibrate'           : 0,
+                'driver'                :'mm_theory',
                 'ff'                    :'charmm',
-                'fix'                   :[],
-                'freq_out_energy'       :-1,
-                'freq_out_pressure'     :-1,
-                'freq_rescale'          :-1,
-                'frozen'                : full((1), -1, dtype=int64),
-                'langevin'              : True,
-                'langevin_temperature'  : None,
-                'langevin_damping'      : 1,
-                'langevin_H'            : False,
-                'langevin_piston'       : False,
-                'langevin_piston_target':   1.01325,        # bar
-                'langevin_piston_period': 100.0,
-                'langevin_piston_decay' :  50.0,
-                'langevin_piston_temp'  : 293.15,
-                'minimise'              : 100,
+                'length_npt'            : 5000000,         # in fs (timestep: 2 fs)
+                'length_nvt'            : 2000000,         # in fs (timestep: 2 fs)
+                'length_production'     : 20000000,        # in fs (timestep: 2 fs)
+                'max_ncycles'           : 20,
+                'minimisation_npt'      : 50000,
+                'minimisation_nvt'      : 50000,
+                'neutralise'            : True,
+                'solute'                : None,
+                'solutes_dist'          : 3.0,
+                'solvent'               : None,
+                'padding'               : 50.0,
                 'nsnapshots'            : 10,
-                'nsteps'                : 100,
-                'pbc_wrap'              :[],                # list of atom indices to perform PBC wrapping
-                'plumed'                : plumed.PLUMED(),
-                'pressure'              : 0.001,               # katm
-                'result'                : resultmd.ResultMD(),
-                'result_theory'         : None,
-                'rigid'                 :'all',
-                'save_trajectory'       : True,
-                'seed'                  : 2020,
-                'shake'                 : True,
-                'shake_max_iter'        : 250,
-                'shake_tolerance'       : 1e-05,               # Ang
-                'spheric_r0'            :-1.0,
-                'spheric_k'             : 10.0,
-                'spheric_exponent'      : 2,
-                'temperature'           : 293.15,
-                'theory'                : None,
-                'timestep'              : 1.0,               # femtosecond
-                'velocities'            : zeros(shape=(1,3), dtype=float64),
+                'fixed_npt'             : '',
+
         }
     @classmethod
     def validate_md_parameters(cls, value: Dict | None, _) -> str | None:
@@ -206,12 +231,6 @@ class SolventCalculation(ChemShellCalculation):
                     f"The parameter '{key:s}' must be of type "
                     f"{valid_keys[key].__name__:s}."
                 )
-
-        # Check for valid parameter values if value options are restricted
-        #if "method" in value.keys():
-        #    method = value.get("method").upper()
-        #   if method not in ["ESP", "RESP"]:
-        #      return f"The specified method key ('{method:s}') is not valid."
 
         return None
 
@@ -270,9 +289,6 @@ class SolventCalculation(ChemShellCalculation):
         elif isinstance(self.inputs.structure, TrajectoryData):
             script += "structure = Fragment(coords="
             script += f"'{SolventCalculation.FILE_TMP_STRUCTURE:s}')\n"
-        elif "structure_index" in self.inputs:
-            print("Not yet supported.")
-            raise Exception("SinglefileData trajectories not yet supported.")
         else:  # SinglefileData
             script += (
                 f"structure = Fragment(coords='{self.inputs.structure.filename:s}')\n"
@@ -288,6 +304,7 @@ class SolventCalculation(ChemShellCalculation):
                 qm_theory_key = SolventCalculation.get_qm_theory_key(qm_theory)
 
                 script += f"from chemsh import {qm_theory_key:s}\n"
+                script += f"qmtheory = {qm_theory_key:s}(frag=structure"
                 param_str = ""
                 if "qm_parameters" in self.inputs:
                     for key in self.inputs.qm_parameters.keys():
@@ -298,16 +315,21 @@ class SolventCalculation(ChemShellCalculation):
                             param_str += ", " + key + "='" + val + "'"
                         else:
                             param_str += ", " + key + "=" + str(val)
-                script += f"qmtheory = {qm_theory_key:s}(frag=structure"
                 script += param_str + ")\n"
 
         script_opt = ""
-        if "optimisation_parameters" in self.inputs:
+        if self.inputs.do_init_optimise.value or self.inputs.do_opt_equillibrate.value:
             # Run a geometry optimisation using DL_FIND
-            if self.inputs.do_init_optimise.value or self.inputs.do_opt_equillibrate.value:
+            #rajany todo- determine if mm opt or qmmmopt option is necessary in the workflow
 
-                script_opt += "from chemsh import Opt\n"
-                opt_str = f"job = Opt(theory=qmtheory"
+            script_opt += "from chemsh import Opt\n"
+            theory_str = "qmtheory"
+            #rajany todo
+            #if qmmm or mm
+            #theory_str = "mmtheory"
+            #theory_str = "qmmmtheory"
+            opt_str = f"job=Opt(theory={theory_str}"
+            if "optimisation_parameters" in self.inputs:
                 for key in self.inputs.optimisation_parameters.keys():
                     if isinstance(self.inputs.optimisation_parameters.get(key), str):
                         opt_str += ", " + key + "='"
@@ -315,29 +337,28 @@ class SolventCalculation(ChemShellCalculation):
                     else:
                         opt_str += ", " + key + "="
                         opt_str += str(self.inputs.optimisation_parameters.get(key))
-                script_opt += opt_str + ")\n"
-                script_opt += "job.run()\njob.result.save()\n"
-                script += script_opt
-                if (not self.inputs.optimisation_parameters.get("thermal", False) 
-                       and self.inputs.optimisation_parameters.get("neb", "no") not in [
-                       "free", "frozen", "perpendicular",
-                        ]):
-                    script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
-
-                return script
+            script_opt += opt_str + ")\n"
+            script_opt += "job.run()\njob.result.save()\n"
+            script += script_opt
+            if (not self.inputs.optimisation_parameters.get("thermal", False) 
+                   and self.inputs.optimisation_parameters.get("neb", "no") not in [
+                   "free", "frozen", "perpendicular",
+                    ]):
+                script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
 
         script_ch = ""
-        if "chargefitting_parameters" in self.inputs and self.inputs.do_charge_fit.value:
+        if self.inputs.do_charge_fit.value:
             # Run a Charge fitting task
             script_ch += "from chemsh import ChargeFitting\n"
             fit_str = f"job = ChargeFitting(theory = qmtheory"
-            for key in self.inputs.chargefitting_parameters.keys():
-                if isinstance(self.inputs.chargefitting_parameters.get(key), str):
-                    fit_str += ", " + key + "='"
-                    fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
-                else:
-                    fit_str += ", " + key + "="
-                    fit_str += str(self.inputs.chargefitting_parameters.get(key))
+            if "chargefitting_parameters" in self.inputs:
+                for key in self.inputs.chargefitting_parameters.keys():
+                    if isinstance(self.inputs.chargefitting_parameters.get(key), str):
+                        fit_str += ", " + key + "='"
+                        fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
+                    else:
+                        fit_str += ", " + key + "="
+                        fit_str += str(self.inputs.chargefitting_parameters.get(key))
             script_ch += fit_str + ")\n"
             script_ch += "job.run()\njob.result.save()\n"
             script_ch += f"from numpy import column_stack, savetxt\n"
@@ -346,80 +367,86 @@ class SolventCalculation(ChemShellCalculation):
             script    += script_ch
             return script
 
-        # Create Solvent box structure object if requested
-        if "solvent_box" in self.inputs:
-            if isinstance(self.inputs.solvent_box, SinglefileData):
-                fname = self.inputs.solvent_box.filename
-            else:
-                raise Exception("Solvent box type not recognized")
-            print(fname)
-            script += f"box = Fragment(coords='{fname:s}')\n"
-
         # Perform an MD
-        if "mm_parameters" in self.inputs and self.inputs.do_md_equillibrate.value:
-            # Creates a molecular mechanics Theory object
-            mm_theory = ChemShellMMTheory[
-                self.inputs.mm_parameters.get("theory").upper()
-            ]
-            if mm_theory != ChemShellMMTheory.NONE:
-                mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
+        if self.inputs.do_md_equillibrate.value:
+            if "mm_parameters" not in self.inputs:
+                return("mm_parameters not provided for md step")
+            else:
+               # Creates a molecular mechanics Theory object
+               mm_theory = ChemShellMMTheory[
+                    self.inputs.mm_parameters.get("theory").upper()
+               ]
+               if mm_theory != ChemShellMMTheory.NONE:
+                    mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
+    
+                    script += f"from chemsh import {mm_theory_key:s}\n"
+                    param_str = ""
+                    #if qmmm_chk:
+                    #else:
+                    script += f"mmtheory = {mm_theory_key:s}"
+                    script += f"(ff='{self.inputs.force_field_file.filename:s}'"
+    
+                    for key in self.inputs.mm_parameters.keys():
+                        if key == "theory":
+                            continue
+                        val = self.inputs.mm_parameters.get(key)
+                        if isinstance(val, str):
+                            param_str += ", " + key + "='" + val + "'"
+                        else:
+                            param_str += ", " + key + "=" + str(val)
+                    script += f"{param_str:s})\n"
 
-                script += f"from chemsh import {mm_theory_key:s}\n"
-                param_str = ""
-                for key in self.inputs.mm_parameters.keys():
-                    if key == "theory":
-                        continue
-                    val = self.inputs.mm_parameters.get(key)
-                    if isinstance(val, str):
-                        param_str += ", " + key + "='" + val + "'"
-                    else:
-                        param_str += ", " + key + "=" + str(val)
-                #if qmmm_chk:
-                #    script += f"mmtheory = {mm_theory_key:s}"
-                #    script += f"(ff='{self.inputs.force_field_file.filename:s}'"
-                #    script += f"{param_str:s})\n"
-                #else:
-                #    script += f"mmtheory = {mm_theory_key:s}(frag=structure, "
-                #    script += f"ff='{self.inputs.force_field_file.filename:s}'"
-                #    script += f"{param_str:s})\n"
+        # Create Solvent box structure object if requested
+            if "solvent_box" in self.inputs:
+                if isinstance(self.inputs.solvent_box, SinglefileData):
+                    fname = self.inputs.solvent_box.filename
+                else:
+                    raise Exception("Solvent box type not recognized")
+                script += f"solvent_structure = Fragment(coords='{fname:s}')\n"
 
-                script += f"mmtheory = {mm_theory_key:s}(frag=box, "
-                script += f"ff='{self.inputs.force_field_file.filename:s}'"
-                script += f"{param_str:s})\n"
+            script += f"solute_structure = Fragment(coords='{SolventCalculation.FILE_TMP_STRUCTURE:s}')\n"
+
             theory_str = "mmtheory"
+            if not self.inputs.solvent_box:
+                raise Exception("Solvent box not provided")
+                #qmmm_chk = "qm_parameters" in self.inputs and "mm_parameters" in self.inputs
 
-        #qmmm_chk = "qm_parameters" in self.inputs and "mm_parameters" in self.inputs
+                # If both QM and MM are specified, create a QM/MM interface object
+                #if qmmm_chk:
+                #    theory_str = "qmmm"
+                #    script += "from chemsh import QMMM\n"
+                #    script += "qmmm = QMMM(frag=structure, qm=qmtheory, mm=mmtheory, "
+                #    qm_region_str = str(self.inputs.qmmm_parameters.get("qm_region", []))
+                #    script += f"qm_region={qm_region_str:s})\n"
+                #elif mm_theory:
+                #    theory_str = "mmtheory"
+                #else:
+                #    theory_str = "qmtheory"
 
-        # If both QM and MM are specified, create a QM/MM interface object
-        #if qmmm_chk:
-        #    theory_str = "qmmm"
-        #    script += "from chemsh import QMMM\n"
-        #    script += "qmmm = QMMM(frag=structure, qm=qmtheory, mm=mmtheory, "
-        #    qm_region_str = str(self.inputs.qmmm_parameters.get("qm_region", []))
-        #    script += f"qm_region={qm_region_str:s})\n"
-        #elif mm_theory:
-        #    theory_str = "mmtheory"
-        #else:
-        #    theory_str = "qmtheory"
-
-            script += "from chemsh import MD\n"
+            script += "from chemsh import Solvation\n"
+            script_md += f"job = Solvation(driver={theory_str:s}"
 
             script_md = ""
-            script_md += f"job = MD(theory={theory_str:s}"
             for key in self.inputs.md_parameters.keys():
-                if isinstance(self.inputs.md_parameters.get(key), str):
+
+                    if key == "driver":
+                        continue
+                    if isinstance(self.inputs.md_parameters.get(key), str):
                         script_md += ", " + key + "='"
                         script_md += self.inputs.md_parameters.get(key) + "'"
-                else:
+                    else:
                         script_md += ", " + key + "="
                         script_md += str(self.inputs.md_parameters.get(key))
-                script_md += ")\n"
+            script_md += ")\n"
 
-    
-            script_md += "job.run()\njob.result.save()\n"
+            if self.inputs.dryrunmd:
+                    script_md += "job.run(dryrun=True)\njob.result.save()\n"
+            else:
+                    script_md += "job.run(dryrun=False)\njob.result.save()\n"
+
             script += script_md
-
             return script
+
  # Perform a single point energy calculation (default calculation type)
         script += "from chemsh import SP\n"
         if "calculation_parameters" not in self.inputs:
@@ -438,6 +465,7 @@ class SolventCalculation(ChemShellCalculation):
 
         script_qm += "job.run()\njob.result.save()\n"
         script += script_qm
+
         return script
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
@@ -457,9 +485,15 @@ class SolventCalculation(ChemShellCalculation):
         """
 
         #rajany diag
-        inputs_dict = [self.inputs.do_opt_equillibrate.value, self.inputs.do_init_optimise.value, self.inputs.do_charge_fit.value, self.inputs.do_md_equillibrate.value]
+        inputs_list = [self.inputs.do_opt_equillibrate.value, 
+                       self.inputs.do_init_optimise.value,
+                       self.inputs.do_charge_fit.value,
+                       self.inputs.do_md_equillibrate.value]
         with folder.open('inputs.dat', 'w') as f:
-            f.write(f"INPUTS = \n{inputs_dict}\n")
+            f.write(f"INPUTS = \n{inputs_list}\n")
+
+        #end of diag
+
         # Create the ChemShell input script
         input_script = self.chemsh_script_generator()
         with folder.open(SolventCalculation.FILE_SCRIPT, "w") as f:
@@ -468,7 +502,7 @@ class SolventCalculation(ChemShellCalculation):
         # Define the AiiDA code parameters
         code_info = CodeInfo()
         code_info.code_uuid = self.inputs.code.uuid
-        if "chemsh.x" in str(self.inputs.code.filepath_executable):
+        if "x" in str(self.inputs.code.filepath_executable):
             code_info.cmdline_params = [
                 SolventCalculation.FILE_SCRIPT,
             ]
@@ -576,5 +610,7 @@ class SolventCalculation(ChemShellCalculation):
 
         if "chargefitting_parameters" in self.inputs:
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
+        if "md_parameters" in self.inputs:
+            calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
 
         return calc_info
