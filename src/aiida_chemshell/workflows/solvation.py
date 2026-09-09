@@ -76,7 +76,7 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
-        inputs["qm_parameters"] = self.inputs.qm_parameters
+        inputs["qm_parameters"] = self.inputs["qm_parameters"]
 
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
@@ -151,7 +151,7 @@ class SolvationWorkChain(WorkChain):
         if self.dryrun:
             inputs.update({
                     "structure": self.inputs.structure,
-                    "qm_parameters": self.inputs.qm_parameters,
+                    "qm_parameters": self.inputs["qm_parameters"],
         })
         else:
             inputs.update({
@@ -212,12 +212,26 @@ class SolvationWorkChain(WorkChain):
         })
 
         if "mm_parameters" not in self.inputs:
-            inputs["mm_parameters"] = Dict({"theory": "DL_POLY"})
+            mm_parameters = {"theory": "DL_POLY", 
+                              "ff"   : "charmm",
+        }
+        elif "mm_parameters" in self.inputs:
+            mm_parameters = self.inputs["mm_parameters"].get_dict()
+
+        #rajany note. ff is not directly passed like this
+        #if "force_field_file" in self.inputs:
+        #    mm_parameters.update({
+        #                         'ff' : self.inputs.force_field_file.filename,
+        #})
+        #else:
+        #rajany todo
+        #generate/access force field
+
+        inputs["mm_parameters"] = Dict(mm_parameters)
 
         if "md_parameters" not in inputs:
             md_parameters = {
                 'driver'                :'mm_theory',
-                'ff'                    :'charmm',
                 'length_npt'            : 50,         # in fs (timestep: 2 fs)
                 'length_nvt'            : 20,         # in fs (timestep: 2 fs)
                 'length_production'     : 20,        # in fs (timestep: 2 fs)
@@ -231,20 +245,12 @@ class SolvationWorkChain(WorkChain):
                 'fixed_npt'             : '',
 
         }
-        elif "md_parameters" in self.inputs:
-            md_parameters = self.inputs["md_parameters"].get_dict()
-        if "force_field_file" in self.inputs:
-            md_parameters.update({
-                                 'ff' : self.inputs.force_field_file.filename,
-        })
-        #rajany todo
-        #generate/access force field
-        #else:
+        else:
+            md_parameters = self.inputs["md_parameters"]
+        #md_parameters.update()
 
-        inputs.md_parameters = Dict(md_parameters)
+        inputs["md_parameters"] = Dict(md_parameters)
 
-        #elif "mm_parameters" in self.inputs:
-        #    return None
         #if "qmmm_parameters" not in inputs:
         #    inputs["qmmm_parameters"] = Dict({"qm_region": []})
 
@@ -256,8 +262,8 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Solvation Calculation Node pk: {self.node.pk}"
         )
-        if inputs.dryrun:
-            self.ctx.chargefit = future
+        if inputs.dryrunmd:
+            self.ctx.md = future
         else:
             return ToContext(md=future)
 

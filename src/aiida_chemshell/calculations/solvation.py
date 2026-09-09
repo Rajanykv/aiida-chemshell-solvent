@@ -75,9 +75,9 @@ class SolventCalculation(ChemShellCalculation):
         spec.input(
             "dryrunmd",
              valid_type = Bool,
-             default=lambda: Bool(True),
+             default=lambda: Bool(False),
              required = True,
-             help = "Whether to do a dry run with the MD parameters(default True)"
+             help = "Whether to do a dry run with the MD parameters(default False)"
         )
         spec.input(
             "dryrun",
@@ -193,7 +193,6 @@ class SolventCalculation(ChemShellCalculation):
         #rajany todo,
         return {
                 'driver'                : str,
-                'ff'                    : str,
                 'length_npt'            : int,         # in fs (timestep: 2 fs)
                 'length_nvt'            : int,         # in fs (timestep: 2 fs)
                 'length_production'     : int,        # in fs (timestep: 2 fs)
@@ -461,9 +460,8 @@ class SolventCalculation(ChemShellCalculation):
                 #    theory_str = "qmtheory"
 
             script += "from chemsh import Solvation\n"
-            script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure, solvent=solvent_structure"
-
             script_md = ""
+            script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure, solvent=solvent_structure"
             for key in self.inputs.md_parameters.keys():
 
                     if key == "driver" or key == "solute" or key == "solvent":
@@ -476,7 +474,7 @@ class SolventCalculation(ChemShellCalculation):
                         script_md += str(self.inputs.md_parameters.get(key))
             script_md += ")\n"
 
-            if self.inputs.dryrunmd or self.inputs.dryrun:
+            if self.inputs.dryrunmd:
                     script_md += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_md += "job.run(dryrun=False)\njob.result.save()\n"
