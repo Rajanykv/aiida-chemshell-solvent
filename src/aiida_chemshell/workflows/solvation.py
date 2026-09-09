@@ -29,7 +29,7 @@ class SolvationWorkChain(WorkChain):
             cls.energy,
             #cls.charge_fit,
             cls.validate_inputs_2,
-            #cls.solvate_md,
+            cls.solvate_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
@@ -68,7 +68,7 @@ class SolvationWorkChain(WorkChain):
         })
 
         if "qm_parameters" not in self.inputs:
-            inputs["qm_parameters"] = Dict(
+            self.inputs["qm_parameters"] = Dict(
                 {
                 "theory": "NWChem",
                 "method": "dft",
@@ -76,6 +76,7 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
+        inputs["qm_parameters"] = self.inputs.qm_parameters
 
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
@@ -88,14 +89,30 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Geometry optimisation step from WorkChainNode pk: {self.node.pk}"
         )
-        return ToContext(optimise=future)
+        if inputs.dryrun:
+            self.ctx.optimise = future
+        else:
+            return ToContext(optimise=future)
 
     def energy(self):
         """Perform a single point energy calculation on the optimised structure."""
 
         inputs = self.exposed_inputs(SolventCalculation)
 
-        if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
+        if inputs.dryrun:
+            if "qm_parameters" not in self.inputs:
+                self.inputs["qm_parameters"] = Dict(
+                {
+                "theory": "NWChem",
+                "method": "dft",
+                "functional": "B3LYP",
+                "basis": "cc-pvdz",
+                }
+            )
+            qm_parameters = self.inputs["qm_parameters"]
+            structure = self.inputs.structure
+
+        elif 'optimise' in self.ctx and self.ctx.optimise.is_finished:
  
             if not self.ctx.optimise.is_finished_ok:
                 return ( "Optimisation is not finished successfully")
@@ -103,34 +120,45 @@ class SolvationWorkChain(WorkChain):
             structure = self.ctx.optimise.outputs.optimised_structure
             qm_parameters = self.ctx.optimise.inputs.qm_parameters.get_dict()
 
-            inputs.update({
+        inputs.update({
                     "structure"       : structure,
                     "qm_parameters"   : qm_parameters,
                     "do_charge_fit"   : Bool(False),
                     "do_init_optimise": Bool(False),
                     "do_opt_equillibrate" : Bool(False),
                     "do_md_equillibrate"  : Bool(False),
-            })
+        })
 
-            if 'metadata' in self.inputs.chemsh:
-                inputs["metadata"] = self.inputs.chemsh["metadata"]
+        if 'metadata' in self.inputs.chemsh:
+            inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-            future = self.submit(SolventCalculation, **inputs)
-            future.label = SolventCalculation.default_process_label(future)
-            future.description = (
+        future = self.submit(SolventCalculation, **inputs)
+        future.label = SolventCalculation.default_process_label(future)
+        future.description = (
                 f"Energy calculation on optimised structure step from WorkChainNode "
                 f"pk: {self.node.pk}"
-            )
+        )
+        if inputs.dryrun:
+            self.ctx.energy = future
+        else:
             return ToContext(energy=future)
-            return None
+        return None
 
     def charge_fit(self):
         """Perform the charge fitting."""
         inputs = self.exposed_inputs(SolventCalculation)
 
-        inputs.update({
+        if self.dryrun:
+            inputs.update({
+                    "structure": self.inputs.structure,
+                    "qm_parameters": self.inputs.qm_parameters,
+        })
+        else:
+            inputs.update({
                     "structure": self.ctx.energy.inputs.structure,
                     "qm_parameters": self.ctx.energy.inputs.qm_parameters,
+        })
+        inputs.update({
                     "do_charge_fit" :  Bool(True),
                     "do_init_optimise" : Bool(False),
                     "do_opt_equillibrate" : Bool(False),
@@ -156,23 +184,38 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Charge Fitting Calculation Node pk: {self.node.pk}"
         )
-        return ToContext(chargefit=future)
+        if inputs.dryrun:
+            self.ctx.chargefit = future
+        else:
+            return ToContext(chargefit=future)
 
     def solvate_md(self):
         """Perform the classical MD equillibration step."""
 
         inputs = self.exposed_inputs(SolventCalculation)
-        inputs.update({
+        if self.inputs.dryrun:
+            inputs.update({
+                     "structure": self.inputs.structure,
+        })
+        else:
+            inputs.update({
                      "structure": self.ctx.energy.inputs.structure,
+        })
                 #if qmmm_chk:
                 #"qm_parameters": self.ctx.energy.inputs.qm_parameters,
+
+        inputs.update({
                      "do_charge_fit" :  Bool(False),
                      "do_init_optimise" : Bool(False),
                      "do_opt_equillibrate" : Bool(False),
                      "do_md_equillibrate" : Bool(True),
         })
 
-        inputs["md_parameters"] = Dict({
+        if "mm_parameters" not in self.inputs:
+            inputs["mm_parameters"] = Dict({"theory": "DL_POLY"})
+
+        if "md_parameters" not in inputs:
+            md_parameters = {
                 'driver'                :'mm_theory',
                 'ff'                    :'charmm',
                 'length_npt'            : 50,         # in fs (timestep: 2 fs)
@@ -182,26 +225,26 @@ class SolvationWorkChain(WorkChain):
                 'minimisation_npt'      : 5,
                 'minimisation_nvt'      : 5,
                 'neutralise'            : True,
-                'solute'                : None,
                 'solutes_dist'          : 3.0,
-                'solvent'               : None,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
                 'fixed_npt'             : '',
 
-              })
-        if "md_parameters" in self.inputs:
-            inputs.md_parameters.update(self.inputs["md_parameters"])
-        if "mm_parameters" not in self.inputs:
-            inputs["mm_parameters"] = Dict({"theory": "DL_POLY"})
-
+        }
+        elif "md_parameters" in self.inputs:
+            md_parameters = self.inputs["md_parameters"].get_dict()
+        if "force_field_file" in self.inputs:
+            md_parameters.update({
+                                 'ff' : self.inputs.force_field_file.filename,
+        })
         #rajany todo
         #generate/access force field
-        if "force_field_file" in self.inputs:
-            inputs.md_parameters.update({'ff' : self.inputs["force_field_file"]})
+        #else:
+
+        inputs.md_parameters = Dict(md_parameters)
+
         #elif "mm_parameters" in self.inputs:
         #    return None
-
         #if "qmmm_parameters" not in inputs:
         #    inputs["qmmm_parameters"] = Dict({"qm_region": []})
 
@@ -213,7 +256,10 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Solvation Calculation Node pk: {self.node.pk}"
         )
-        return ToContext(md=future)
+        if inputs.dryrun:
+            self.ctx.chargefit = future
+        else:
+            return ToContext(md=future)
 
 
     def result(self):

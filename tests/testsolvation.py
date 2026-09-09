@@ -40,7 +40,7 @@ builder.solvent_box=SinglefileData(file="/home/rajany/solventwork/solvent_boxes/
 builder.force_field_file=SinglefileData(file="/home/rajany/solventwork/solvent_boxes/wat-box30.ff")
 #rajany note: validator at base needs mm_parameters to be provided explicitly before it can be set any default value by process,
 builder.mm_parameters = Dict({"theory": "DL_POLY"})
-
+builder.dryrun = True
 #node = submit(builder)
 #builder.metadata.dry_run = True
 results, node = run.get_node(builder)

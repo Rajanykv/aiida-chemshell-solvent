@@ -72,13 +72,19 @@ class SolventCalculation(ChemShellCalculation):
              required = True,
              help = "Whether to do an optimisation instead of MD equillibration(default True)"
         )
-        #rajany note: only one not added to the chemsh namespace
         spec.input(
             "dryrunmd",
              valid_type = Bool,
              default=lambda: Bool(True),
              required = True,
              help = "Whether to do a dry run with the MD parameters(default True)"
+        )
+        spec.input(
+            "dryrun",
+             valid_type = Bool,
+             default=lambda: Bool(False),
+             required = True,
+             help = "Whether to do a dry run of all the steps in solvation(default False)"
         )
         spec.input(
             "solvent_box",
@@ -360,7 +366,11 @@ class SolventCalculation(ChemShellCalculation):
                         opt_str += ", " + key + "="
                         opt_str += str(self.inputs.optimisation_parameters.get(key))
             script_opt += opt_str + ")\n"
-            script_opt += "job.run()\njob.result.save()\n"
+            if self.inputs.dryrun:
+                    script_opt += "job.run(dryrun=True)\njob.result.save()\n"
+            else:
+                    script_opt += "job.run(dryrun=False)\njob.result.save()\n"
+
             script += script_opt
             if (not self.inputs.optimisation_parameters.get("thermal", False) 
                    and self.inputs.optimisation_parameters.get("neb", "no") not in [
@@ -383,7 +393,11 @@ class SolventCalculation(ChemShellCalculation):
                         fit_str += ", " + key + "="
                         fit_str += str(self.inputs.chargefitting_parameters.get(key))
             script_ch += fit_str + ")\n"
-            script_ch += "job.run()\njob.result.save()\n"
+            if self.inputs.dryrun:
+                    script_ch += "job.run(dryrun=True)\njob.result.save()\n"
+            else:
+                    script_ch += "job.run(dryrun=False)\njob.result.save()\n"
+
             script_ch += f"from numpy import column_stack, savetxt\n"
             script_ch += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
             script_ch += f"savetxt('{SolventCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
@@ -462,7 +476,7 @@ class SolventCalculation(ChemShellCalculation):
                         script_md += str(self.inputs.md_parameters.get(key))
             script_md += ")\n"
 
-            if self.inputs.dryrunmd:
+            if self.inputs.dryrunmd or self.inputs.dryrun:
                     script_md += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_md += "job.run(dryrun=False)\njob.result.save()\n"
@@ -486,7 +500,11 @@ class SolventCalculation(ChemShellCalculation):
         hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
         script_qm += f"hessian={hess_str:s})\n"
 
-        script_qm += "job.run()\njob.result.save()\n"
+        if self.inputs.dryrun:
+                script_qm += "job.run(dryrun=True)\njob.result.save()\n"
+        else:
+                script_qm += "job.run(dryrun=False)\njob.result.save()\n"
+
         script += script_qm
 
         return script
