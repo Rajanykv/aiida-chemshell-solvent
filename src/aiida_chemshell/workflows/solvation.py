@@ -20,17 +20,15 @@ class SolvationWorkChain(WorkChain):
         ## Inputs ##
         spec.expose_inputs(SolventCalculation,exclude=['metadata'])
         spec.expose_inputs(SolventCalculation,include=['metadata'], namespace="chemsh")
-        spec.expose_inputs(SolventCalculation,include=['do_charge_fit', 'do_init_optimise', 'do_opt_equillibrate',
-                                                        'do_md_equillibrate'], namespace="bools")
 
         ## Workflow ##
         #rajany todo add full workflow
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
-            #cls.energy,
+            cls.energy,
             #cls.charge_fit,
-            #cls.validate_inputs_2,
+            cls.validate_inputs_2,
             #cls.solvate_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
@@ -51,8 +49,9 @@ class SolvationWorkChain(WorkChain):
         """Validate the inputs provided to the WorkChain."""
         has_file = "structure" in self.inputs
         has_box = "solvent_box" in self.inputs
-        if not has_files and not has_box:
-        #if not has_box:
+        #has_ff = "force_field_file" in self.inputs
+        #if has_ff and "mm_parameters" not in self.inputs:
+        if not has_file and not has_box:
             return self.exit_codes.ERROR_NO_INPUTS
         return None
 
@@ -95,43 +94,35 @@ class SolvationWorkChain(WorkChain):
         """Perform a single point energy calculation on the optimised structure."""
 
         inputs = self.exposed_inputs(SolventCalculation)
-        if 'optimise' in self.ctx and self.ctx.optimise.is_finished_ok:
+
+        if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
+ 
+            if not self.ctx.optimise.is_finished_ok:
+                return ( "Optimisation is not finished successfully")
+
             structure = self.ctx.optimise.outputs.optimised_structure
-            qm_parameters = self.ctx.optimise.inputs.qm_parameters,
-        else:
-            structure = self.inputs.structure
-            if "qm_parameters" not in self.inputs:
-                qm_parameters = Dict(
-                {
-                "theory": "NWChem",
-                "method": "dft",
-                "functional": "B3LYP",
-                "basis": "cc-pvdz",
-                })
-            else:
-                qm_parameters = self.inputs["qm_parameters"]
+            qm_parameters = self.ctx.optimise.inputs.qm_parameters.get_dict()
 
-
-        inputs.update({
+            inputs.update({
                     "structure"       : structure,
                     "qm_parameters"   : qm_parameters,
                     "do_charge_fit"   : Bool(False),
                     "do_init_optimise": Bool(False),
                     "do_opt_equillibrate" : Bool(False),
                     "do_md_equillibrate"  : Bool(False),
-        })
+            })
 
-        if 'metadata' in self.inputs.chemsh:
-            inputs["metadata"] = self.inputs.chemsh["metadata"]
+            if 'metadata' in self.inputs.chemsh:
+                inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-        future = self.submit(SolventCalculation, **inputs)
-        future.label = SolventCalculation.default_process_label(future)
-        future.description = (
+            future = self.submit(SolventCalculation, **inputs)
+            future.label = SolventCalculation.default_process_label(future)
+            future.description = (
                 f"Energy calculation on optimised structure step from WorkChainNode "
                 f"pk: {self.node.pk}"
             )
-        return ToContext(energy=future)
-        return None
+            return ToContext(energy=future)
+            return None
 
     def charge_fit(self):
         """Perform the charge fitting."""
@@ -191,9 +182,9 @@ class SolvationWorkChain(WorkChain):
                 'minimisation_npt'      : 5,
                 'minimisation_nvt'      : 5,
                 'neutralise'            : True,
-                'solute'                : solute_structure,
+                'solute'                : None,
                 'solutes_dist'          : 3.0,
-                'solvent'               : solvent_structure,
+                'solvent'               : None,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
                 'fixed_npt'             : '',
@@ -206,7 +197,8 @@ class SolvationWorkChain(WorkChain):
 
         #rajany todo
         #generate/access force field
-        #if "force_field_file" in self.inputs:
+        if "force_field_file" in self.inputs:
+            inputs.md_parameters.update({'ff' : self.inputs["force_field_file"]})
         #elif "mm_parameters" in self.inputs:
         #    return None
 

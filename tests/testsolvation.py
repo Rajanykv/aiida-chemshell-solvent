@@ -23,18 +23,24 @@ builder.chemsh.metadata.options.resources = {
 
 # "num_mpiprocs_per_machine": 2,"num_machines": 1, }
 #"num_cores_per_machine": 1,
-builder.chargefitting_parameters = Dict({
-    'method':'resp', 
-    'npoints': 50,
-    'type':'shell',
-    'vdw_scale':1.5, 
-    'nlayers':1, 
-    'nlayers':1, 
-    'tolerance':1e-12
-    })
-     # Only set ``withmpi`` when the code itself does not declare it.
-#if builder.code.with_mpi is None:
-#    builder.metadata.options.withmpi = True
+# Only set ``withmpi`` when the code itself does not declare it.
+if builder.code.with_mpi is None:
+    builder.metadata.options.withmpi = True
+
+#builder.chargefitting_parameters = Dict({
+#    'method':'resp', 
+#    'npoints': 50,
+#    'type':'shell',
+#    'vdw_scale':1.5, 
+#    'nlayers':1, 
+#    'nlayers':1, 
+#    'tolerance':1e-12
+#    })
+builder.solvent_box=SinglefileData(file="/home/rajany/solventwork/solvent_boxes/water-box30-100ns.pqr")
+builder.force_field_file=SinglefileData(file="/home/rajany/solventwork/solvent_boxes/wat-box30.ff")
+#rajany note: validator at base needs mm_parameters to be provided explicitly before it can be set any default value by process,
+builder.mm_parameters = Dict({"theory": "DL_POLY"})
+
 #node = submit(builder)
 #builder.metadata.dry_run = True
 results, node = run.get_node(builder)

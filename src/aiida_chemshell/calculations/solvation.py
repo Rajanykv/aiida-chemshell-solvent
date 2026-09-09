@@ -82,7 +82,7 @@ class SolventCalculation(ChemShellCalculation):
         )
         spec.input(
             "solvent_box",
-            valid_type=(SinglefileData),
+            valid_type=SinglefileData,
             validator=cls.validate_inputs_solvent,
             required=False,
             help=(
@@ -94,6 +94,7 @@ class SolventCalculation(ChemShellCalculation):
             "md_parameters",
             valid_type=Dict,
             required=False,
+            validator=cls.validate_md_parameters,
             help="A dictionary of parameters for the ChemShell MD Solvation.",
         )
 
@@ -158,11 +159,17 @@ class SolventCalculation(ChemShellCalculation):
 
         return
 
-    def validate_inputs_solvent(self):
+    @classmethod
+    def validate_inputs_solvent(cls, value: SinglefileData | None, _) -> str | None:
         """Validate the inputs provided to the WorkChain."""
-        has_box = "solvent_box" in self.inputs
-        if not has_box:
-            return self.exit_codes.ERROR_NO_INPUTS
+        if isinstance(value, SinglefileData):
+            if value.filename[-4:] not in [".xyz", ".pun", ".pqr", ".pdb"]:
+                if value.filename[-6:] != ".cjson":
+                    return (
+                        "Structure file must be either an '.xyz', '.pun', '.pqr', '.pdb' or "
+                        "'.cjson' formatted structure file."
+                    )
+
         return None
 
 
@@ -179,21 +186,21 @@ class SolventCalculation(ChemShellCalculation):
         """
         #rajany todo,
         return {
-                'driver'                :'mm_theory',
-                'ff'                    :'charmm',
-                'length_npt'            : 5000000,         # in fs (timestep: 2 fs)
-                'length_nvt'            : 2000000,         # in fs (timestep: 2 fs)
-                'length_production'     : 20000000,        # in fs (timestep: 2 fs)
-                'max_ncycles'           : 20,
-                'minimisation_npt'      : 50000,
-                'minimisation_nvt'      : 50000,
-                'neutralise'            : True,
-                'solute'                : None,
-                'solutes_dist'          : 3.0,
-                'solvent'               : None,
-                'padding'               : 50.0,
-                'nsnapshots'            : 10,
-                'fixed_npt'             : '',
+                'driver'                : str,
+                'ff'                    : str,
+                'length_npt'            : int,         # in fs (timestep: 2 fs)
+                'length_nvt'            : int,         # in fs (timestep: 2 fs)
+                'length_production'     : int,        # in fs (timestep: 2 fs)
+                'max_ncycles'           : int,
+                'minimisation_npt'      : int,
+                'minimisation_nvt'      : int,
+                'neutralise'            : bool,
+                'solute'                : str,
+                'solutes_dist'          : float,
+                'solvent'               : str,
+                'padding'               : float,
+                'nsnapshots'            : int,
+                'fixed_npt'             : str,
 
         }
     @classmethod
@@ -233,6 +240,21 @@ class SolventCalculation(ChemShellCalculation):
                 )
 
         return None
+
+
+    def _build_process_label(self) -> str:
+        """
+        AiiDA Process label definition.
+
+        Defines the process label to be associated with the created ProcessNode
+        stored in the AiiDA database.
+
+        Returns
+        -------   
+        str
+            The process label based on what inputs have been provided.
+        """
+        return SolventCalculation.default_process_label(self)
 
     @classmethod
     def default_process_label(cls, node) -> str:
@@ -345,6 +367,7 @@ class SolventCalculation(ChemShellCalculation):
                    "free", "frozen", "perpendicular",
                     ]):
                 script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
+            return script
 
         script_ch = ""
         if self.inputs.do_charge_fit.value:
@@ -424,12 +447,12 @@ class SolventCalculation(ChemShellCalculation):
                 #    theory_str = "qmtheory"
 
             script += "from chemsh import Solvation\n"
-            script_md += f"job = Solvation(driver={theory_str:s}"
+            script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure, solvent=solvent_structure"
 
             script_md = ""
             for key in self.inputs.md_parameters.keys():
 
-                    if key == "driver":
+                    if key == "driver" or key == "solute" or key == "solvent":
                         continue
                     if isinstance(self.inputs.md_parameters.get(key), str):
                         script_md += ", " + key + "='"
@@ -502,7 +525,7 @@ class SolventCalculation(ChemShellCalculation):
         # Define the AiiDA code parameters
         code_info = CodeInfo()
         code_info.code_uuid = self.inputs.code.uuid
-        if "x" in str(self.inputs.code.filepath_executable):
+        if "chemsh.x" in str(self.inputs.code.filepath_executable):
             code_info.cmdline_params = [
                 SolventCalculation.FILE_SCRIPT,
             ]
