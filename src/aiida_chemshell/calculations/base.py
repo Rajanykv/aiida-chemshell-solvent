@@ -880,7 +880,7 @@ class ChemShellCalculation(CalcJob):
             if node.inputs.optimisation_parameters.get("thermal", False):
                 return "ChemShell_Vibrational_Frequencies" + theory_key
             return "ChemShell_Geometry_Optimisation" + theory_key
-        elif "chargefitting_parameters" in node.inputs:
+        if "chargefitting_parameters" in node.inputs:
             return "ChemShell_Charge_Fitting" + theory_key
 
         return "ChemShell_Single_Point_Calculation" + theory_key
@@ -1002,20 +1002,7 @@ class ChemShellCalculation(CalcJob):
 
         ## Setup Task objects
 
-        if "chargefitting_parameters" in self.inputs:
-            # Run a Charge fitting task
-            script += "from chemsh import ChargeFitting\n"
-            fit_str = f"job = ChargeFitting(theory = qmtheory"
-            for key in self.inputs.chargefitting_parameters.keys():
-                if isinstance(self.inputs.chargefitting_parameters.get(key), str):
-                    fit_str += ", " + key + "='"
-                    fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
-                else:
-                    fit_str += ", " + key + "="
-                    fit_str += str(self.inputs.chargefitting_parameters.get(key))
-            script += fit_str + ")\n"
-
-        elif "optimisation_parameters" in self.inputs:
+        if "optimisation_parameters" in self.inputs:
             # Run a geometry optimisation using DL_FIND
             script += "from chemsh import Opt\n"
             opt_str = f"job = Opt(theory={theory_str:s}"
@@ -1029,6 +1016,7 @@ class ChemShellCalculation(CalcJob):
                     opt_str += ", " + key + "="
                     opt_str += str(self.inputs.optimisation_parameters.get(key))
             script += opt_str + ")\n"
+
         else:
             # Perform a single point energy calculation (default calculation type)
             script += "from chemsh import SP\n"
@@ -1042,6 +1030,19 @@ class ChemShellCalculation(CalcJob):
             script += f"gradients={grad_str:s}, "
             hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
             script += f"hessian={hess_str:s})\n"
+
+        if "chargefitting_parameters" in self.inputs:
+            # Run a Charge fitting task
+            script += "from chemsh import ChargeFitting\n"
+            fit_str = f"job = ChargeFitting(theory = qmtheory"
+            for key in self.inputs.chargefitting_parameters.keys():
+                if isinstance(self.inputs.chargefitting_parameters.get(key), str):
+                    fit_str += ", " + key + "='"
+                    fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
+                else:
+                    fit_str += ", " + key + "="
+                    fit_str += str(self.inputs.chargefitting_parameters.get(key))
+            script += fit_str + ")\n"
 
         script += "job.run()\njob.result.save()\n"
         if "optimisation_parameters" in self.inputs:
