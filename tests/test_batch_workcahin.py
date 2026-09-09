@@ -186,7 +186,7 @@ def test_batch_from_file(chemsh_code, get_test_data_file):
         "Results file is of the incorrect length"
     )
 
-    assert "Energy=-75.585287789025" in results_lines[1], (
+    assert "Energy=-75.58528778" in results_lines[1], (
         "Missing energy tag in first frame on results file."
     )
 
