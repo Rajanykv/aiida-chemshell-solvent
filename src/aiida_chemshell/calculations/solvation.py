@@ -45,32 +45,39 @@ class SolventCalculation(ChemShellCalculation):
         super().define(spec)
 
         spec.input(
+            "do_sp",
+             valid_type = Bool,
+             default=lambda: Bool(False),
+             required = True,
+             help = "Whether to do a single point energy calculation. (default False)"
+        )
+        spec.input(
             "do_init_optimise",
              valid_type = Bool,
-             default=lambda: Bool(True),
+             default=lambda: Bool(False),
              required = True,
-             help = "Whether to do optimisation on the initial structure. (default True)"
+             help = "Whether to do optimisation on the initial structure. (default False)"
         )
         spec.input(
             "do_charge_fit",
              valid_type = Bool,
-             default=lambda: Bool(True),
+             default=lambda: Bool(False),
              required = True,
-             help = "Whether to do a QM RESP charge fitting(default True)"
+             help = "Whether to do a QM RESP charge fitting(default False)"
         )
         spec.input(
             "do_md_equillibrate",
              valid_type = Bool,
-             default=lambda: Bool(True),
+             default=lambda: Bool(False),
              required = True,
-             help = "Whether to do an MD equillibration step (default True)"
+             help = "Whether to do an MD equillibration step (default False)"
         )
         spec.input(
             "do_opt_equillibrate",
              valid_type = Bool,
-             default=lambda: Bool(True),
+             default=lambda: Bool(False),
              required = True,
-             help = "Whether to do an optimisation instead of MD equillibration(default True)"
+             help = "Whether to do an optimisation instead of MD equillibration(default False)"
         )
         spec.input(
             "dryrunmd",
@@ -414,14 +421,14 @@ class SolventCalculation(ChemShellCalculation):
                ]
                if mm_theory != ChemShellMMTheory.NONE:
                     mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
-    
+
                     script += f"from chemsh import {mm_theory_key:s}\n"
                     param_str = ""
                     #if qmmm_chk:
                     #else:
                     script += f"mmtheory = {mm_theory_key:s}"
                     script += f"(ff='{self.inputs.force_field_file.filename:s}'"
-    
+
                     for key in self.inputs.mm_parameters.keys():
                         if key == "theory":
                             continue
@@ -483,27 +490,28 @@ class SolventCalculation(ChemShellCalculation):
             return script
 
  # Perform a single point energy calculation (default calculation type)
-        script += "from chemsh import SP\n"
-        if "calculation_parameters" not in self.inputs:
-            # Assign default values if none are given
-            self.inputs.calculation_parameters = Dict(dict={})
+        if self.inputs.do_sp:
+            script += "from chemsh import SP\n"
+            if "calculation_parameters" not in self.inputs:
+                # Assign default values if none are given
+                self.inputs.calculation_parameters = Dict(dict={})
 
 
-        theory_str = "qmtheory"
-        script_qm = ""
-        # Runs a QM single point energy calculation
-        script_qm += f"job = SP(theory={theory_str:s}, "
-        grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
-        script_qm += f"gradients={grad_str:s}, "
-        hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
-        script_qm += f"hessian={hess_str:s})\n"
+            theory_str = "qmtheory"
+            script_qm = ""
+            # Runs a QM single point energy calculation
+            script_qm += f"job = SP(theory={theory_str:s}, "
+            grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
+            script_qm += f"gradients={grad_str:s}, "
+            hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
+            script_qm += f"hessian={hess_str:s})\n"
 
-        if self.inputs.dryrun:
-                script_qm += "job.run(dryrun=True)\njob.result.save()\n"
-        else:
-                script_qm += "job.run(dryrun=False)\njob.result.save()\n"
+            if self.inputs.dryrun:
+                    script_qm += "job.run(dryrun=True)\njob.result.save()\n"
+            else:
+                    script_qm += "job.run(dryrun=False)\njob.result.save()\n"
 
-        script += script_qm
+            script += script_qm
 
         return script
 

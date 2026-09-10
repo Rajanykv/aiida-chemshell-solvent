@@ -26,10 +26,10 @@ class SolvationWorkChain(WorkChain):
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
-            cls.energy,
+            #cls.energy,
             #cls.charge_fit,
-            cls.validate_inputs_2,
-            cls.solvate_md,
+            #cls.validate_inputs_2,
+            #cls.solvate_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
@@ -61,14 +61,11 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.exposed_inputs(SolventCalculation)
         inputs.update({
-                  "do_charge_fit"   : Bool(False),
                   "do_init_optimise": Bool(True),
-                  "do_opt_equillibrate" : Bool(False),
-                  "do_md_equillibrate"  : Bool(False),
         })
 
         if "qm_parameters" not in self.inputs:
-            self.inputs["qm_parameters"] = Dict(
+            inputs["qm_parameters"] = Dict(
                 {
                 "theory": "NWChem",
                 "method": "dft",
@@ -76,7 +73,8 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
-        inputs["qm_parameters"] = self.inputs["qm_parameters"]
+        else:
+            inputs["qm_parameters"] = self.inputs["qm_parameters"]
 
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
@@ -101,7 +99,7 @@ class SolvationWorkChain(WorkChain):
 
         if inputs.dryrun:
             if "qm_parameters" not in self.inputs:
-                self.inputs["qm_parameters"] = Dict(
+                inputs["qm_parameters"] = Dict(
                 {
                 "theory": "NWChem",
                 "method": "dft",
@@ -109,7 +107,8 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
-            qm_parameters = self.inputs["qm_parameters"]
+            else:
+                qm_parameters = self.inputs["qm_parameters"]
             structure = self.inputs.structure
 
         elif 'optimise' in self.ctx and self.ctx.optimise.is_finished:
@@ -123,10 +122,7 @@ class SolvationWorkChain(WorkChain):
         inputs.update({
                     "structure"       : structure,
                     "qm_parameters"   : qm_parameters,
-                    "do_charge_fit"   : Bool(False),
-                    "do_init_optimise": Bool(False),
-                    "do_opt_equillibrate" : Bool(False),
-                    "do_md_equillibrate"  : Bool(False),
+                    "do_sp"           : Bool(True),
         })
 
         if 'metadata' in self.inputs.chemsh:
@@ -160,9 +156,6 @@ class SolvationWorkChain(WorkChain):
         })
         inputs.update({
                     "do_charge_fit" :  Bool(True),
-                    "do_init_optimise" : Bool(False),
-                    "do_opt_equillibrate" : Bool(False),
-                    "do_md_equillibrate" : Bool(False),
         })
 
         if "chargefitting_parameters" not in self.inputs:
@@ -205,9 +198,6 @@ class SolvationWorkChain(WorkChain):
                 #"qm_parameters": self.ctx.energy.inputs.qm_parameters,
 
         inputs.update({
-                     "do_charge_fit" :  Bool(False),
-                     "do_init_optimise" : Bool(False),
-                     "do_opt_equillibrate" : Bool(False),
                      "do_md_equillibrate" : Bool(True),
         })
 
