@@ -27,8 +27,6 @@ Source = "https://github.com/stfc/aiida-chemshell"
 
 [project.entry-points."aiida.calculations"]
 "chemshell" = "aiida_chemshell.calculations.base:ChemShellCalculation"
-"chemsh.solvation" = "aiida_chemshell.calculations.solvation:SolventCalculation"
-
 
 [project.entry-points."aiida.parsers"]
 "chemshell" = "aiida_chemshell.parsers.base:ChemShellParser"
@@ -39,7 +37,6 @@ Source = "https://github.com/stfc/aiida-chemshell"
 "chemshell.atomic_energies" = "aiida_chemshell.workflows.isolated_atoms:IsolatedAtomicEnergiesWorkChain"
 "chemshell.batch" = "aiida_chemshell.workflows.batch_calculation:BatchProcessWorkChain"
 "chemshell.solvation" = "aiida_chemshell.workflows.solvation:SolvationWorkChain"
-"chemshell.chargefit" = "aiida_chemshell.workflows.chargefit:ChargeFitWorkChain"
 
 [tool.setuptools.packages.find]
 where = ["src"]
