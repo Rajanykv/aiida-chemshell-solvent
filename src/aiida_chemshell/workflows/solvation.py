@@ -2,7 +2,7 @@
 
 from aiida.common.exceptions import MissingEntryPointError
 from aiida.engine import ToContext, WorkChain
-from aiida.orm import ArrayData, Bool, Code, Dict, Float, SinglefileData, List
+from aiida.orm import ArrayData, Bool, Code, Dict, Float, SinglefileData, List, FolderData
 from aiida.plugins.factories import CalculationFactory
 
 from aiida_chemshell.calculations.solvation import SolventCalculation
@@ -26,10 +26,14 @@ class SolvationWorkChain(WorkChain):
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
-            #cls.energy,
-            #cls.charge_fit,
-            #cls.validate_inputs_2,
-            #cls.solvate_md,
+            cls.result_opt,
+            cls.energy,
+            cls.result_sp,
+            cls.charge_fit,
+            cls.result_charge,
+            cls.validate_inputs_2,
+            cls.solvate_md,
+            cls.result_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
@@ -203,7 +207,6 @@ class SolvationWorkChain(WorkChain):
 
         if "mm_parameters" not in self.inputs:
             mm_parameters = {"theory": "DL_POLY", 
-                              "ff"   : "charmm",
         }
         elif "mm_parameters" in self.inputs:
             mm_parameters = self.inputs["mm_parameters"].get_dict()
@@ -221,14 +224,12 @@ class SolvationWorkChain(WorkChain):
 
         if "md_parameters" not in inputs:
             md_parameters = {
-                'driver'                :'mm_theory',
                 'length_npt'            : 50,         # in fs (timestep: 2 fs)
                 'length_nvt'            : 20,         # in fs (timestep: 2 fs)
                 'length_production'     : 20,        # in fs (timestep: 2 fs)
                 'max_ncycles'           : 20,
                 'minimisation_npt'      : 5,
                 'minimisation_nvt'      : 5,
-                'neutralise'            : True,
                 'solutes_dist'          : 3.0,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
@@ -237,8 +238,10 @@ class SolvationWorkChain(WorkChain):
         }
         else:
             md_parameters = self.inputs["md_parameters"]
-        #md_parameters.update()
-
+        md_parameters.update({
+                'driver'                :'mm_theory',
+                'neutralise'            : True,
+        })
         inputs["md_parameters"] = Dict(md_parameters)
 
         #if "qmmm_parameters" not in inputs:
@@ -257,12 +260,37 @@ class SolvationWorkChain(WorkChain):
         else:
             return ToContext(md=future)
 
-
-    def result(self):
+#template for outputs:Add if extra outputs to be parsed.
+    def result_opt(self):
         """Extract the final workflow results."""
-        self.out(
-            "Charges_file", self.ctx.chargefit.outputs.charges_file
-        )
-        self.out("Fitted_charges", self.ctx.chargefit.outputs.fitted_charges)
-        self.out("Final_energy", self.ctx.chargefit.outputs.energy)
+        if "optimised_structure" not in self.ctx.optimise.outputs:
+            return(self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
         return
+
+    def result_sp(self):
+        """Extract the final workflow results."""
+        if not  self.ctx.energy.outputs.energy:
+            return( self.exit_codes.ERROR_MISSING_FINAL_ENERGY)
+        return
+
+    def result_charge(self):
+        """Extract the final workflow results."""
+        if not "fitted_charges" in self.ctx.chargefit.outputs:
+            if not "charges_file" in self.ctx.chargefit.outputs:
+                return( self.exit_codes.ERROR_CHARGES_NOT_FOUND)
+        return
+
+    def result_md(self):
+        if "do_md_equillibrate" in self.ctx.md.inputs:
+            if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
+                descrip = "Snapshots from the Solvation MD run of"
+                input_pk = self.ctx.md.inputs.structure.pk
+                input2_pk = self.ctx.md.inputs.solvent_box.pk
+                descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
+                folder_node = FolderData()
+                folder_node.copy_tree(self.retrieved, src_path=SolventCalculation.FOLDER_SNAPSHOTS)
+                self.out("snapshots", folder_node)
+        else:
+                return self.exit_codes.ERROR_MD_NOT_FINISHED
+        return
+

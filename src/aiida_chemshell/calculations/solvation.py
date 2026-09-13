@@ -145,7 +145,7 @@ class SolventCalculation(ChemShellCalculation):
             valid_type=List,
             required=False,
             help="The calculated fitted charges for the structure",
-           )
+        )
 
         spec.exit_code(
             307,
@@ -161,15 +161,6 @@ class SolventCalculation(ChemShellCalculation):
                 "MD snapshots not found. MD run has not completed."
             ),
         )
-        spec.exit_code(
-            306,
-            "ERROR_MD_NOT_FINISHED",
-            message=(
-                "Failed to complete the MD equillibration."
-            ),
-        )
-
-
         return
 
     @classmethod

@@ -595,6 +595,7 @@ class ChemShellCalculation(CalcJob):
                 "stack": int,
                 "restart": str,
                 "timestep": float,
+                "temperature" : float,
             }
         elif theory == "GULP":
             valid_keys = {
