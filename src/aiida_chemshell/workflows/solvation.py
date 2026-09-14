@@ -22,15 +22,15 @@ class SolvationWorkChain(WorkChain):
         spec.expose_inputs(SolventCalculation,include=['metadata'], namespace="chemsh")
 
         ## Workflow ##
-        #rajany todo add full workflow
+        #rajany todo add full/correct workflow
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
             cls.energy,
             cls.result_sp,
-            cls.charge_fit,
-            cls.result_charge,
+            #cls.charge_fit,
+            #cls.result_charge,
             cls.validate_inputs_2,
             cls.solvate_md,
             cls.result_md,
@@ -86,6 +86,9 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
+        #to avoid parsing output
+        inputs["chargefitting_parameters"] = None
+
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
@@ -132,6 +135,9 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
+        #avoid parsing output at each step
+        inputs["optimisation_parameters"] = None
+
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
@@ -176,6 +182,9 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
+        #avoid parsing output at each step
+        inputs["optimisation_parameters"] = None
+
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
@@ -214,14 +223,9 @@ class SolvationWorkChain(WorkChain):
         if "force_field_file" not in self.inputs and "ff" not in self.inputs.mm_parameters.get_dict():
             mm_parameters.update({ "ff" : "charmm"})
 
-        #rajany note. ff is not directly passed like this
-        #if "force_field_file" in self.inputs:
-        #    mm_parameters.update({
-        #                         'ff' : self.inputs.force_field_file.filename,
-        #})
         #else:
         #rajany todo
-        #generate/access force field
+        #generate/access prepared force field
 
         inputs["mm_parameters"] = Dict(mm_parameters)
 
@@ -263,7 +267,7 @@ class SolvationWorkChain(WorkChain):
         else:
             return ToContext(md=future)
 
-#template for outputs:Add if extra outputs to be parsed.
+#template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
         """Extract the final workflow results."""
         if "optimised_structure" not in self.ctx.optimise.outputs:
