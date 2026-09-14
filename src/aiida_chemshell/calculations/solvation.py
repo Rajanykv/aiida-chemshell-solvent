@@ -418,7 +418,15 @@ class SolventCalculation(ChemShellCalculation):
                     #if qmmm_chk:
                     #else:
                     script += f"mmtheory = {mm_theory_key:s}"
-                    script += f"(ff='{self.inputs.force_field_file.filename:s}'"
+                    if 'ff' not in self.inputs:
+                        if "force_field_file" in self.inputs:
+                            script += f"(ff='{self.inputs.force_field_file.filename:s}'"
+                        else:
+                            return("Required Force field not provided")
+                    elif isinstance(self.inputs.ff, str):
+                            script += f"(ff='{self.inputs.ff:s}'"
+                    else:
+                         return("Required Force field not provided")
 
                     for key in self.inputs.mm_parameters.keys():
                         if key == "theory":
