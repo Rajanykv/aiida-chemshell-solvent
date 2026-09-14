@@ -211,6 +211,9 @@ class SolvationWorkChain(WorkChain):
         elif "mm_parameters" in self.inputs:
             mm_parameters = self.inputs["mm_parameters"].get_dict()
 
+        if "force_field_file" not in self.inputs and "ff" not in self.inputs.mm_parameters.get_dict():
+            mm_parameters.update({ "ff" : "charmm"})
+
         #rajany note. ff is not directly passed like this
         #if "force_field_file" in self.inputs:
         #    mm_parameters.update({
@@ -264,20 +267,20 @@ class SolvationWorkChain(WorkChain):
     def result_opt(self):
         """Extract the final workflow results."""
         if "optimised_structure" not in self.ctx.optimise.outputs:
-            return(self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
+            return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
         return
 
     def result_sp(self):
         """Extract the final workflow results."""
         if not  self.ctx.energy.outputs.energy:
-            return( self.exit_codes.ERROR_MISSING_FINAL_ENERGY)
+            return( ChemShellCalculation.exit_codes.ERROR_MISSING_FINAL_ENERGY)
         return
 
     def result_charge(self):
         """Extract the final workflow results."""
         if not "fitted_charges" in self.ctx.chargefit.outputs:
             if not "charges_file" in self.ctx.chargefit.outputs:
-                return( self.exit_codes.ERROR_CHARGES_NOT_FOUND)
+                return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
         return
 
     def result_md(self):
