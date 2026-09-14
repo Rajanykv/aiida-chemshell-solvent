@@ -319,7 +319,8 @@ class ChemShellCalculation(CalcJob):
     ) -> str | None:
         """Perform additional validation checks on the total inputs namespace."""
         if "mm_parameters" in value and "force_field_file" not in value:
-            return "A force field must be specified to use molecular mechanics."
+            if "ff" not in value["mm_parameters"]:
+                return "A force field must be specified to use molecular mechanics."
         if "force_field_file" in value and "mm_parameters" not in value:
             return "A MM theory code must be specified to use molecular mechanics."
         if "qmmm_parameters" in value:
@@ -596,6 +597,7 @@ class ChemShellCalculation(CalcJob):
                 "restart": str,
                 "timestep": float,
                 "temperature" : float,
+                "ff" : str,
             }
         elif theory == "GULP":
             valid_keys = {
