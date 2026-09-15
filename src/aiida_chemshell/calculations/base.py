@@ -285,7 +285,7 @@ class ChemShellCalculation(CalcJob):
             302,
             "ERROR_MISSING_OPTIMISED_STRUCTURE_FILE",
             message=(
-                "ChemShell failed to produced the expected optimised structure file."
+                "ChemShell failed to produce the expected optimised structure file."
             ),
         )
         spec.exit_code(
@@ -1034,18 +1034,19 @@ class ChemShellCalculation(CalcJob):
             hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
             script += f"hessian={hess_str:s})\n"
 
+        # Run a Charge fitting task
         if "chargefitting_parameters" in self.inputs:
-            # Run a Charge fitting task
-            script += "from chemsh import ChargeFitting\n"
-            fit_str = f"job = ChargeFitting(theory = qmtheory"
-            for key in self.inputs.chargefitting_parameters.keys():
-                if isinstance(self.inputs.chargefitting_parameters.get(key), str):
-                    fit_str += ", " + key + "='"
-                    fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
-                else:
-                    fit_str += ", " + key + "="
-                    fit_str += str(self.inputs.chargefitting_parameters.get(key))
-            script += fit_str + ")\n"
+            if self.inputs.chargefitting_parameters.get_dict():
+                script += "from chemsh import ChargeFitting\n"
+                fit_str = f"job = ChargeFitting(theory = qmtheory"
+                for key in self.inputs.chargefitting_parameters.keys():
+                    if isinstance(self.inputs.chargefitting_parameters.get(key), str):
+                        fit_str += ", " + key + "='"
+                        fit_str += self.inputs.chargefitting_parameters.get(key) + "'"
+                    else:
+                        fit_str += ", " + key + "="
+                        fit_str += str(self.inputs.chargefitting_parameters.get(key))
+                script += fit_str + ")\n"
 
         script += "job.run()\njob.result.save()\n"
         if "optimisation_parameters" in self.inputs:
@@ -1059,9 +1060,10 @@ class ChemShellCalculation(CalcJob):
                 script += f'structure.save("{ChemShellCalculation.FILE_DLFIND}")\n'
 
         if "chargefitting_parameters" in self.inputs:
-            script += f"from numpy import column_stack, savetxt\n"
-            script += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
-            script += f"savetxt('{ChemShellCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
+            if self.inputs.chargefitting_parameters.get_dict():
+                script += f"from numpy import column_stack, savetxt\n"
+                script += f"charges = column_stack([structure.names.astype(str), structure.charges])\n"
+                script += f"savetxt('{ChemShellCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
 
         return script
 
@@ -1187,6 +1189,7 @@ class ChemShellCalculation(CalcJob):
                 calc_info.retrieve_temporary_list.append("nebpath.xyz")
 
         if "chargefitting_parameters" in self.inputs:
-            calc_info.retrieve_list.append(f"{ChemShellCalculation.FILE_CHARGES}")
+            if self.inputs.chargefitting_parameters.get_dict():
+                calc_info.retrieve_list.append(f"{ChemShellCalculation.FILE_CHARGES}")
 
         return calc_info

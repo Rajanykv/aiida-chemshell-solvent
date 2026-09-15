@@ -74,29 +74,6 @@ class ChemShellParser(Parser):
                         grad_data.set_array("hessian", hessian)
                         self.out("gradients", grad_data)
 
-        if "chargefitting_parameters" in self.node.inputs:
-            if ChemShellCalculation.FILE_CHARGES in self.retrieved.list_object_names():
-                descrip = "Charges fitted from a ChemShell ESP charge fitting"
-                input_pk = self.node.inputs.structure.pk
-                descrip += f" of node {input_pk}"
-                if isinstance(self.node.inputs.structure, SinglefileData):
-                    input_fname = self.node.inputs.structure.filename
-                    descrip += f" ({input_fname})"
-                # Store the charges structure file
-                charges = {}
-                with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
-                    charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
-                    self.out( "fitted_charges", List(charges, label="Fitted charges"))
-                    self.out("charges_file", SinglefileData(
-                            file=f,
-                            filename=ChemShellCalculation.FILE_CHARGES,
-                            label="Plain text Charges File",
-                            description=descrip,
-                        ),
-                    )
-            else:
-                return self.exit_codes.ERROR_CHARGES_NOT_FOUND
-
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:
             dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
@@ -158,8 +135,32 @@ class ChemShellParser(Parser):
                 else:
                     return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
 
-        return ExitCode(0)
 
+        if "chargefitting_parameters" in self.node.inputs:
+            if self.node.inputs.chargefitting_parameters.get_dict():
+                if ChemShellCalculation.FILE_CHARGES in self.retrieved.list_object_names():
+                    descrip = "Charges fitted from a ChemShell ESP charge fitting"
+                    input_pk = self.node.inputs.structure.pk
+                    descrip += f" of node {input_pk}"
+                    if isinstance(self.node.inputs.structure, SinglefileData):
+                        input_fname = self.node.inputs.structure.filename
+                        descrip += f" ({input_fname})"
+                    # Store the charges structure file
+                    charges = {}
+                    with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
+                        charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
+                        self.out( "fitted_charges", List(charges, label="Fitted charges"))
+                        self.out("charges_file", SinglefileData(
+                                file=f,
+                                filename=ChemShellCalculation.FILE_CHARGES,
+                                label="Plain text Charges File",
+                                description=descrip,
+                            ),
+                        )
+                else:
+                    return self.exit_codes.ERROR_CHARGES_NOT_FOUND
+
+        return ExitCode(0)
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
         read = False
