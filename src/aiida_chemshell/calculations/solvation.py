@@ -158,6 +158,20 @@ class SolventCalculation(ChemShellCalculation):
             308,
             "ERROR_MD_NOT_FINISHED",
             message=(
+                "MD run has not completed."
+            ),
+        )
+        spec.exit_code(
+            309,
+            "ERROR_FF_NOT_DEFINED",
+            message=(
+                "Force field file or force field string not found."
+            ),
+        )
+        spec.exit_code(
+            310,
+            "ERROR_MD_SNAPSHOTS_NOT_FOUND",
+            message=(
                 "MD snapshots not found. MD run has not completed."
             ),
         )
@@ -418,18 +432,21 @@ class SolventCalculation(ChemShellCalculation):
                     #if qmmm_chk:
                     #else:
                     script += f"mmtheory = {mm_theory_key:s}"
-                    if 'ff' not in self.inputs:
-                        if "force_field_file" in self.inputs:
-                            script += f"(ff='{self.inputs.force_field_file.filename:s}'"
-                        else:
-                            return("Required Force field not provided")
-                    elif isinstance(self.inputs.ff, str):
-                            script += f"(ff='{self.inputs.ff:s}'"
+                    if "force_field_file" in self.inputs:
+                        script += f"(ff='{self.inputs.force_field_file.filename:s}'"
+                    elif 'ff' in self.inputs["mm_parameters"]:
+                      if isinstance(self.inputs.mm_parameters["ff"], str):
+                          ff=self.inputs.mm_parameters['ff']
+                          script += f"(ff='{ff:s}'"
+                      else:
+                          return ChemShellCalculation.exit_codes.ERROR_FF_NOT_DEFINED
                     else:
-                         return("Required Force field not provided")
+                      return ChemShellCalculation.exit_codes.ERROR_FF_NOT_DEFINED
 
                     for key in self.inputs.mm_parameters.keys():
                         if key == "theory":
+                            continue
+                        if key == "ff":
                             continue
                         val = self.inputs.mm_parameters.get(key)
                         if isinstance(val, str):
@@ -446,11 +463,9 @@ class SolventCalculation(ChemShellCalculation):
                     raise Exception("Solvent box type not recognized")
                 script += f"solvent_structure = Fragment(coords='{fname:s}')\n"
 
-            script += f"solute_structure = Fragment(coords='{SolventCalculation.FILE_TMP_STRUCTURE:s}')\n"
+            script += f"solute_structure = structure\n"
 
             theory_str = "mmtheory"
-            if not self.inputs.solvent_box:
-                raise Exception("Solvent box not provided")
                 #qmmm_chk = "qm_parameters" in self.inputs and "mm_parameters" in self.inputs
 
                 # If both QM and MM are specified, create a QM/MM interface object
@@ -655,7 +670,8 @@ class SolventCalculation(ChemShellCalculation):
                 calc_info.retrieve_temporary_list.append("nebpath.xyz")
 
         if "chargefitting_parameters" in self.inputs:
-            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
+            if self.inputs.chargefitting_parameters.get_dict():
+                calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
         if "md_parameters" in self.inputs:
             calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
 

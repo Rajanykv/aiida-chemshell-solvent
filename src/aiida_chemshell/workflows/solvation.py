@@ -8,6 +8,7 @@ from aiida.plugins.factories import CalculationFactory
 from aiida_chemshell.calculations.solvation import SolventCalculation
 from aiida_chemshell.calculations.base import ChemShellCalculation
 from aiida_chemshell.workflows.isolated_atoms import IsolatedAtomicEnergiesWorkChain
+from copy import deepcopy
 
 class SolvationWorkChain(WorkChain):
     """Steps in the Solvation Work Flow."""
@@ -27,8 +28,6 @@ class SolvationWorkChain(WorkChain):
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
-            cls.energy,
-            cls.result_sp,
             #cls.charge_fit,
             #cls.result_charge,
             cls.validate_inputs_2,
@@ -45,7 +44,7 @@ class SolvationWorkChain(WorkChain):
         """Validate the inputs provided to the WorkChain."""
         has_file = "structure" in self.inputs
         if not has_file:
-            return self.exit_codes.ERROR_NO_INPUTS
+            return SolventCalculation.exit_codes.ERROR_NO_INPUTS
 
         return None
 
@@ -56,7 +55,7 @@ class SolvationWorkChain(WorkChain):
         #has_ff = "force_field_file" in self.inputs
         #if has_ff and "mm_parameters" not in self.inputs:
         if not has_file and not has_box:
-            return self.exit_codes.ERROR_NO_INPUTS
+            return SolventCalculation.exit_codes.ERROR_NO_INPUTS
         return None
 
 
@@ -77,8 +76,6 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
-        else:
-            inputs["qm_parameters"] = self.inputs["qm_parameters"]
 
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
@@ -87,7 +84,7 @@ class SolvationWorkChain(WorkChain):
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
         #to avoid parsing output
-        inputs["chargefitting_parameters"] = None
+        inputs.update({"chargefitting_parameters": {},})
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -99,9 +96,11 @@ class SolvationWorkChain(WorkChain):
         else:
             return ToContext(optimise=future)
 
-    def energy(self):
-        """Perform a single point energy calculation on the optimised structure."""
+        del inputs
+        return
 
+    def charge_fit(self):
+        """Perform the charge fitting."""
         inputs = self.exposed_inputs(SolventCalculation)
 
         if inputs.dryrun:
@@ -114,56 +113,23 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
             )
-            else:
-                qm_parameters = self.inputs["qm_parameters"]
-            structure = self.inputs.structure
 
         elif 'optimise' in self.ctx and self.ctx.optimise.is_finished:
- 
+
             if not self.ctx.optimise.is_finished_ok:
-                return ( "Optimisation is not finished successfully")
+                return ( "Optimisation has not finished successfully")
 
             structure = self.ctx.optimise.outputs.optimised_structure
             qm_parameters = self.ctx.optimise.inputs.qm_parameters.get_dict()
 
-        inputs.update({
+            inputs.update({
                     "structure"       : structure,
                     "qm_parameters"   : qm_parameters,
-                    "do_sp"           : Bool(True),
-        })
+            })
 
-        if 'metadata' in self.inputs.chemsh:
-            inputs["metadata"] = self.inputs.chemsh["metadata"]
-
-        #avoid parsing output at each step
-        inputs["optimisation_parameters"] = None
-
-        future = self.submit(SolventCalculation, **inputs)
-        future.label = SolventCalculation.default_process_label(future)
-        future.description = (
-                f"Energy calculation on optimised structure step from WorkChainNode "
-                f"pk: {self.node.pk}"
-        )
-        if inputs.dryrun:
-            self.ctx.energy = future
         else:
-            return ToContext(energy=future)
-        return None
+            return("Optimisation has not finished successully")
 
-    def charge_fit(self):
-        """Perform the charge fitting."""
-        inputs = self.exposed_inputs(SolventCalculation)
-
-        if self.dryrun:
-            inputs.update({
-                    "structure": self.inputs.structure,
-                    "qm_parameters": self.inputs["qm_parameters"],
-        })
-        else:
-            inputs.update({
-                    "structure": self.ctx.energy.inputs.structure,
-                    "qm_parameters": self.ctx.energy.inputs.qm_parameters,
-        })
         inputs.update({
                     "do_charge_fit" :  Bool(True),
         })
@@ -183,7 +149,7 @@ class SolvationWorkChain(WorkChain):
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
         #avoid parsing output at each step
-        inputs["optimisation_parameters"] = None
+        inputs["optimisation_parameters"] = {}
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -194,18 +160,20 @@ class SolvationWorkChain(WorkChain):
             self.ctx.chargefit = future
         else:
             return ToContext(chargefit=future)
+        del inputs
+        return
 
     def solvate_md(self):
         """Perform the classical MD equillibration step."""
 
         inputs = self.exposed_inputs(SolventCalculation)
-        if self.inputs.dryrun:
+        if inputs.dryrun:
             inputs.update({
                      "structure": self.inputs.structure,
         })
         else:
             inputs.update({
-                     "structure": self.ctx.energy.inputs.structure,
+                     "structure" : self.ctx.optimise.outputs.optimised_structure
         })
                 #if qmmm_chk:
                 #"qm_parameters": self.ctx.energy.inputs.qm_parameters,
@@ -244,7 +212,8 @@ class SolvationWorkChain(WorkChain):
 
         }
         else:
-            md_parameters = self.inputs["md_parameters"]
+            md_parameters = self.inputs["md_parameters"].get_dict()
+
         md_parameters.update({
                 'driver'                :'mm_theory',
                 'neutralise'            : True,
@@ -267,17 +236,14 @@ class SolvationWorkChain(WorkChain):
         else:
             return ToContext(md=future)
 
+        del inputs
+        return
+
 #template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
         """Extract the final workflow results."""
         if "optimised_structure" not in self.ctx.optimise.outputs:
             return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
-        return
-
-    def result_sp(self):
-        """Extract the final workflow results."""
-        if not  self.ctx.energy.outputs.energy:
-            return( ChemShellCalculation.exit_codes.ERROR_MISSING_FINAL_ENERGY)
         return
 
     def result_charge(self):
@@ -289,15 +255,23 @@ class SolvationWorkChain(WorkChain):
 
     def result_md(self):
         if "do_md_equillibrate" in self.ctx.md.inputs:
-            if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
-                descrip = "Snapshots from the Solvation MD run of"
+            if SolventCalculation.FOLDER_SNAPSHOTS in self.ctx.md.outputs.retrieved.list_object_names():
+
                 input_pk = self.ctx.md.inputs.structure.pk
                 input2_pk = self.ctx.md.inputs.solvent_box.pk
+                descrip = "Snapshots from the Solvation MD run of"
                 descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
-                folder_node = FolderData()
-                folder_node.copy_tree(self.retrieved, src_path=SolventCalculation.FOLDER_SNAPSHOTS)
+
+                import tempfile
+                retrieved_folder = self.ctx.md.outputs.retrieved.get_object()
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    retrieved_folder.copy_tree(temp_dir, path=SolventCalculation.FOLDER_SNAPSHOTS)
+                    folder_node = FolderData()
+                    folder_node.put_object_from_tree(temp_dir)
                 self.out("snapshots", folder_node)
+            else:
+                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
         else:
-                return self.exit_codes.ERROR_MD_NOT_FINISHED
+                return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
         return
 
