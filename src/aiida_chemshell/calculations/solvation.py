@@ -431,13 +431,16 @@ class SolventCalculation(ChemShellCalculation):
                     param_str = ""
                     #if qmmm_chk:
                     #else:
-                    script += f"mmtheory = {mm_theory_key:s}"
                     if "force_field_file" in self.inputs:
-                        script += f"(ff='{self.inputs.force_field_file.filename:s}'"
+                        script += f"mmtheory = {mm_theory_key:s}"
+                        script += f"(ff = '{self.inputs.force_field_file.filename:s}'"
                     elif 'ff' in self.inputs["mm_parameters"]:
                       if isinstance(self.inputs.mm_parameters["ff"], str):
                           ff=self.inputs.mm_parameters['ff']
-                          script += f"(ff='{ff:s}'"
+                          script += f"from chemsh import DL_FIELD\n"
+                          script += f"dlpff = DL_FIELD(ff='{ff:s}')\n"
+                          script += f"mmtheory = {mm_theory_key:s}"
+                          script += f"(ff=dlpff"
                       else:
                           return ChemShellCalculation.exit_codes.ERROR_FF_NOT_DEFINED
                     else:
