@@ -2,15 +2,36 @@
 
 from aiida.common.exceptions import MissingEntryPointError
 from aiida.engine import ToContext, WorkChain
-from aiida.orm import ArrayData, Bool, Code, Dict, Float, SinglefileData
+from aiida.orm import (
+    ArrayData,
+    Bool,
+    Code,
+    Dict,
+    Float,
+    SinglefileData,
+    StructureData,
+)
 from aiida.plugins.factories import CalculationFactory
 
 from aiida_chemshell.calculations.base import ChemShellCalculation
 from aiida_chemshell.workflows.isolated_atoms import IsolatedAtomicEnergiesWorkChain
+from aiida_chemshell.workflows.utils import apply_default_input_node_tags
 
 
 class GeometryOptimisationWorkChain(WorkChain):
     """Geometry optimisation calculation with extended optional calculation options."""
+
+    # Default labels and descriptions applied to WorkChain specific input nodes
+    DEFAULT_INPUT_TAGS = {
+        "vibrational_analysis": (
+            "Vibrational Analysis Flag",
+            "Whether to calculate the vibrational modes of the optimised structure.",
+        ),
+        "mlip_model": (
+            "MLIP Foundation Model",
+            "The MLIP foundation model to apply fine-tuning to.",
+        ),
+    }
 
     @classmethod
     def define(cls, spec) -> None:
@@ -36,7 +57,7 @@ class GeometryOptimisationWorkChain(WorkChain):
         )
         spec.output(
             "optimised_structure",
-            valid_type=SinglefileData,
+            valid_type=(StructureData, SinglefileData),
             required=True,
             help="The final optimised geometry of the given structure.",
         )
@@ -86,6 +107,7 @@ class GeometryOptimisationWorkChain(WorkChain):
 
         ## Workflow ##
         spec.outline(
+            cls.apply_default_input_tags,
             cls.optimise,
             cls.energy,
             cls.isolated_atom_energies,
@@ -95,6 +117,10 @@ class GeometryOptimisationWorkChain(WorkChain):
         )
 
         return
+
+    def apply_default_input_tags(self) -> None:
+        """Apply default labels/descriptions to WorkChain specific input nodes."""
+        apply_default_input_node_tags(self.inputs, self.DEFAULT_INPUT_TAGS)
 
     def optimise(self):
         """Perform the geometry optimisation."""

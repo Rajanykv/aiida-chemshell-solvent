@@ -1,16 +1,36 @@
 """Workflow for processing a series of structures from a single input."""
 
-import re
-
-from aiida.engine import ProcessSpec, ToContext, WorkChain, calcfunction
-from aiida.orm import ProcessNode, SinglefileData, StructureData, TrajectoryData
+from aiida.engine import ProcessSpec, ToContext, WorkChain
+from aiida.orm import (
+    ProcessNode,
+    SinglefileData,
+    StructureData,
+    TrajectoryData,
+)
 from aiida.plugins.factories import CalculationFactory
+
+from aiida_chemshell.calculations.utils import (
+    combine_into_extended_xyz,
+    extract_structures_from_xyz,
+)
+from aiida_chemshell.workflows.utils import apply_default_input_node_tags
 
 ChemShellCalculation = CalculationFactory("chemshell")
 
 
 class BatchProcessWorkChain(WorkChain):
     """Process a series of structures with the same inputs."""
+
+    # Default labels and descriptions applied to WorkChain specific input nodes
+    DEFAULT_INPUT_TAGS = {
+        "structure_files": (
+            "Multi-Structure Input File",
+            (
+                "A structure file containing multiple structures to batch process with "
+                "ChemShell."
+            ),
+        ),
+    }
 
     @classmethod
     def define(cls, spec: ProcessSpec) -> None:
@@ -49,6 +69,30 @@ class BatchProcessWorkChain(WorkChain):
             ),
         )
 
+        # Results combination key
+        spec.input(
+            "combine_results",
+            valid_type=bool,
+            required=False,
+            non_db=True,
+            help=(
+                "A key which tells the workchain to combine all the results from the "
+                "individual batch processing tasks into one final results object which "
+                'is an extended xyz file (key="xyz").'
+            ),
+            # validator=cls.validate_combination_input_key,
+        )
+        # Results combination output node
+        spec.output(
+            "combined_results",
+            valid_type=SinglefileData,
+            required=False,
+            help=(
+                "An extended XYZ file with all the ChemShell results from the batch "
+                "processed input structures."
+            ),
+        )
+
         spec.exit_code(
             350,
             "ERROR_NO_INPUTS",
@@ -59,11 +103,26 @@ class BatchProcessWorkChain(WorkChain):
         )
 
         spec.outline(
+            cls.apply_default_input_tags,
             cls.validate_inputs,
             cls.extract_structures_from_files,
             cls.submit_jobs,
             cls.collate_results,
         )
+
+    def apply_default_input_tags(self) -> None:
+        """Apply default labels/descriptions to WorkChain specific input nodes."""
+        apply_default_input_node_tags(self.inputs, self.DEFAULT_INPUT_TAGS)
+
+    # @classmethod
+    # def validate_combination_input_key(cls, key: str | None, _) -> str | None:
+    #     """Validate the combine_results input key."""
+    #     if key in ["xyz", "trajectory"]:
+    #         return None
+    #     return (
+    #         f"Invalid input for 'combine_results'. {key} must be either 'xyz' or "
+    #         "'trajectory'"
+    #     )
 
     def validate_inputs(self):
         """Validate the inputs provided to the WorkChain."""
@@ -130,76 +189,44 @@ class BatchProcessWorkChain(WorkChain):
 
     def collate_results(self) -> None:
         """Collect the WorkChain's results."""
-        return
-
-
-@calcfunction
-def extract_structures_from_xyz(file: SinglefileData):
-    """Parse a SinglefileData XYZ trajectory into individual StructureData nodes."""
-    with file.open(mode="r") as f:
-        lines = f.readlines()
-
-    structures = {}
-    line_count = len(lines)
-    i = 0
-    frame_idx = 0
-
-    while i < line_count:
-        line = lines[i].strip()
-        try:
-            natoms = int(line)
-        except ValueError as e:
-            raise Exception("Invalid XYZ format detected.") from e
-        if (i + 2 + natoms) > line_count:
-            raise Exception("XYZ file truncation detected.")
-
-        # Create the base StructureData object
-        structure = StructureData(pbc=(False, False, False))
-
-        # Read the comment line
-        i += 1
-        line = lines[i].strip()
-        cell = None
-        if "Lattice=" in line:
-            match = re.search(r'Lattice="([^"]+)"', line)
-            if match:
-                lat_vals = [float(x) for x in match.group(1).split()]
-                if len(lat_vals) == 9:
-                    cell = [lat_vals[0:3], lat_vals[3:6], lat_vals[6:9]]
-            pbc = [True, True, True]
-            if "pbc=" in line:
-                match_pbc = re.search(r'pbc="([^"]+)"', line)
-                if match_pbc:
-                    pbc_vals = match_pbc.group(1).split()
-                    if len(pbc_vals) == 3:
-                        # Robust check: converts 'T', 'True', or '1' to True
-                        pbc = [val.upper() in ["T", "TRUE", "1"] for val in pbc_vals]
-
-            # Assign the parse cell parameters to the StructureData object
-            structure.cell = cell
-            structure.pbc = pbc
-
-        i += 1
-        for atmi in range(natoms):
-            atom_line = lines[i + atmi].strip().split()
-            if len(atom_line) < 4:
-                raise Exception(
-                    f"Invalid atom entry in xyz file: {line[i + atmi].strip()}"
+        if self.inputs.get("combine_results", None):
+            if "optimisation_parameters" in self.inputs:
+                self.logger.warning(
+                    "Output combination is not currently supported for optimisation "
+                    "jobs."
                 )
-
-            structure.append_atom(
-                position=[
-                    float(atom_line[1]),
-                    float(atom_line[2]),
-                    float(atom_line[3]),
-                ],
-                symbols=atom_line[0],
+                return
+            inputs = {}
+            include_forces = self.inputs.get("calculation_parameters", {}).get(
+                "gradients", False
             )
-
-        structures[
-            f"{file.filename.replace(' ', '_').strip('.xyz')}_frame_{frame_idx}"
-        ] = structure
-        frame_idx += 1
-        i += natoms
-
-    return structures
+            if "trajectory" in self.inputs:
+                inputs["structure_trajectory"] = self.inputs.trajectory
+                for i in range(self.inputs.trajectory.numsteps):
+                    inputs[f"energy_trajectory_frame_{i}"] = self.ctx[
+                        f"trajectory_frame_{i}"
+                    ].outputs.energy
+                    if include_forces:
+                        inputs[f"array_trajectory_frame_{i}"] = self.ctx[
+                            f"trajectory_frame_{i}"
+                        ].outputs.gradients
+            if "structures" in self.inputs:
+                for key, structure in self.inputs.structures.items():
+                    inputs[f"structure_{key}"] = structure
+                    inputs[f"energy_{key}"] = self.ctx[key].outputs.energy
+                    if include_forces:
+                        inputs[f"array_{key}"] = self.ctx[key].outputs.gradients
+            if "structure_files" in self.inputs:
+                for key, structure in self.structures_from_files.items():
+                    inputs[f"structure_{key}"] = structure
+                    inputs[f"energy_{key}"] = self.ctx[key].outputs.energy
+                    if include_forces:
+                        inputs[f"array_{key}"] = self.ctx[key].outputs.gradients
+            combined_output_node = combine_into_extended_xyz(**inputs)
+            combined_output_node.label = "ChemShell Batch Processed Structures"
+            combined_output_node.description = (
+                "Collection of structures processed by ChemShell from WorkChain: "
+                f" {self.node.pk}"
+            )
+            self.out("combined_results", combined_output_node)
+        return

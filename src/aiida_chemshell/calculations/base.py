@@ -38,6 +38,47 @@ class ChemShellCalculation(CalcJob):
     FILE_TRJFRC = "path_force.xyz"
     FILE_CHARGES = "fitted_charges.txt"
 
+    # Default labels and descriptions applied to input nodes that do not already
+    # have them set, keyed by the input port name.
+    DEFAULT_INPUT_TAGS = {
+        "structure": (
+            "Input Chemical Structure",
+            "The input structure for the ChemShell calculation.",
+        ),
+        "structure_index": (
+            "Structure Input Index",
+            "Index used to select a structure from a multi-structure input.",
+        ),
+        "structure2": (
+            "Secondary Input Structure",
+            "The additional (final) input structure for the ChemShell calculation.",
+        ),
+        "calculation_parameters": (
+            "ChemShell Calculation Parameters",
+            "Base parameters for the ChemShell Task object.",
+        ),
+        "optimisation_parameters": (
+            "ChemShell Optimisation Parameters",
+            "Parameters for the ChemShell geometry optimisation task.",
+        ),
+        "qm_parameters": (
+            "ChemShell QM Parameters",
+            "Parameters for the ChemShell QM Theory object.",
+        ),
+        "mm_parameters": (
+            "ChemShell MM Parameters",
+            "Parameters for the ChemShell MM interface.",
+        ),
+        "force_field_file": (
+            "ChemShell Force Field File",
+            "Force field parameters for the ChemShell MM interface.",
+        ),
+        "qmmm_parameters": (
+            "ChemShell QM/MM Parameters",
+            "Parameters for the ChemShell QM/MM interface.",
+        ),
+    }
+
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
         """
@@ -148,6 +189,17 @@ class ChemShellCalculation(CalcJob):
             required=False,
             help="A dictionary of parameters for the ChemShell QM/MM interface.",
         )
+        spec.input(
+            "output_structure_as_file",
+            valid_type=bool,
+            non_db=True,
+            default=False,
+            help=(
+                "If True, the optimised structure is returned as a SinglefileData "
+                "node containing a ChemShell '.cjson' file. By default (False) it is "
+                "returned as an AiiDA StructureData node."
+            ),
+        )
 
         ## Calculation outputs
         spec.output(
@@ -168,12 +220,14 @@ class ChemShellCalculation(CalcJob):
         )
         spec.output(
             "optimised_structure",
-            valid_type=SinglefileData,
+            valid_type=(StructureData, SinglefileData),
             required=False,
             help=(
                 "The optimised structure of the given system, if a geometry "
-                "optimisation task was configured and successfully completed. The "
-                "structure is contained within a ChemShell '.pun' file."
+                "optimisation task was configured and successfully completed. By "
+                "default this is an AiiDA StructureData node; if the "
+                "'output_structure_as_file' input is True it is instead a "
+                "SinglefileData node containing a ChemShell '.cjson' file."
             ),
         )
         spec.output(
@@ -237,11 +291,11 @@ class ChemShellCalculation(CalcJob):
         )
         spec.output(
             "trajectory_force",
-            valid_type=SinglefileData,
+            valid_type=ArrayData,
             required=False,
             help=(
-                "XYZ style trajectory file containing forces at each step of a geometry"
-                " optimisation."
+                "Per-atom forces (natoms, 3) at each step of a geometry optimisation, "
+                "stored one array per frame labelled 'Frame {i}'."
             ),
         )
 
@@ -360,13 +414,13 @@ class ChemShellCalculation(CalcJob):
         return None
 
     @classmethod
-    def get_valid_calculation_parameter_keys(cls) -> tuple[str]:
+    def get_valid_calculation_parameter_keys(cls) -> tuple[str, str]:
         """
         Return the valid parameter keys for the ChemShell Single Point calculation.
 
         Returns
         -------
-         : tuple[str]
+        tuple[str, str]
             A tuple of valid parameter keys for the ChemShell calculation.
         """
         return ("gradients", "hessian")
@@ -415,7 +469,7 @@ class ChemShellCalculation(CalcJob):
 
         Returns
         -------
-         : tuple[str]
+        tuple[str]
             A tuple of valid optimisation parameter keys for the ChemShell
             calculation.
         """
@@ -473,12 +527,13 @@ class ChemShellCalculation(CalcJob):
     @classmethod
     def get_valid_qm_parameter_keys(cls) -> dict:
         """
-        Return a tuple of valid parameter keys for the ChemShell calculation.
+        Return a dictionary of valid parameter keys for the ChemShell calculation.
 
         Returns
         -------
-        validKeys : dict[str: type]
-            A tuple of valid Theory parameter keys for the ChemShell calculation.
+        dict[str, type]
+            A mapping of valid Theory parameter keys to their expected value
+            types for the ChemShell calculation.
         """
         return {
             "theory": str,
@@ -563,14 +618,21 @@ class ChemShellCalculation(CalcJob):
         return None
 
     @classmethod
-    def get_valid_mm_parameter_keys(cls, theory: str = "") -> dict[str:type]:
+    def get_valid_mm_parameter_keys(cls, theory: str = "") -> dict[str, type]:
         """
-        Return a tuple of valid parameter keys for the ChemShell MM interface.
+        Return a dictionary of valid parameter keys for the ChemShell MM interface.
+
+        Parameters
+        ----------
+        theory : str
+            The MM theory whose valid parameter keys should be returned (e.g.
+            'DL_POLY'). Defaults to an empty string.
 
         Returns
         -------
-        validKeys : dict[str: type]
-            A tuple of valid MM parameter keys for the ChemShell calculation.
+        dict[str, type]
+            A mapping of valid MM parameter keys to their expected value types
+            for the ChemShell calculation.
         """
         if theory == "DL_POLY":
             valid_keys = {
@@ -865,6 +927,12 @@ class ChemShellCalculation(CalcJob):
         Defines the process label to be associated with the created ProcessNode
         stored in the AiiDA database.
 
+        Parameters
+        ----------
+        node : ProcessNode
+            The process (or its ProcessNode) whose inputs are inspected to build
+            the label.
+
         Returns
         -------
         str
@@ -1067,12 +1135,30 @@ class ChemShellCalculation(CalcJob):
 
         return script
 
+    def apply_default_input_tags(self) -> None:
+        """
+        Apply default labels and descriptions to the calculation input nodes.
+
+        Iterates over the provided input nodes and, for any node defined in
+        :attr:`DEFAULT_INPUT_TAGS` that does not already have a label or
+        description set, assigns the corresponding default value. Existing
+        labels and descriptions are left untouched.
+        """
+        for port_name, (label, description) in self.DEFAULT_INPUT_TAGS.items():
+            if port_name not in self.inputs:
+                continue
+            node = self.inputs[port_name]
+            if not node.label:
+                node.label = label
+            if not node.description:
+                node.description = description
+
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         """
         Prepare the ChemShell calculation for submission.
 
-        Params
-        ------
+        Parameters
+        ----------
         folder : Folder
             An `aiida.common.folders.Folder` specifying the temporary working
             directory for the calculation.
@@ -1082,6 +1168,16 @@ class ChemShellCalculation(CalcJob):
         calcInfo : CalcInfo
             An `aiida.common.CalcInfo` instance.
         """
+        # Apply default labels/descriptions to input nodes lacking them
+        self.apply_default_input_tags()
+
+        # Record the (non_db) output structure format choice as a node extra so
+        # that the parser can determine whether to return the optimised structure
+        # as a StructureData or SinglefileData node.
+        self.node.base.extras.set(
+            "output_structure_as_file", bool(self.inputs.output_structure_as_file)
+        )
+
         # Create the ChemShell input script
         input_script = self.chemsh_script_generator()
         with folder.open(ChemShellCalculation.FILE_SCRIPT, "w") as f:
