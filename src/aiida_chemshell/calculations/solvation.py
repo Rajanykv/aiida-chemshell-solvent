@@ -438,7 +438,7 @@ class SolventCalculation(ChemShellCalculation):
                       if isinstance(self.inputs.mm_parameters["ff"], str):
                           ff=self.inputs.mm_parameters['ff']
                           script += f"from chemsh import DL_FIELD\n"
-                          script += f"dlpff = DL_FIELD(ff='{ff:s}')\n"
+                          script += f"dlpff = DL_FIELD(ff='{ff:s}',filename='_dl_field.xyz')\n"
                           script += f"mmtheory = {mm_theory_key:s}"
                           script += f"(ff=dlpff"
                       else:
