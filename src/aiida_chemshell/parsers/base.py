@@ -152,14 +152,7 @@ class ChemShellParser(Parser):
                     charges = {}
                     with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
                         charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
-                        self.out( "fitted_charges", List(charges, label="Fitted charges"))
-                        self.out("charges_file", SinglefileData(
-                                file=f,
-                                filename=ChemShellCalculation.FILE_CHARGES,
-                                label="Plain text Charges File",
-                                description=descrip,
-                            ),
-                        )
+                        self.out( "fitted_charges", List(list=charges, label="Fitted charges"))
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 

@@ -258,14 +258,6 @@ class ChemShellCalculation(CalcJob):
                 "The fitted charge at each atom once the charge fitting task was completed."
             ),
         )
-        spec.output(
-            "charges_file",
-            valid_type=SinglefileData,
-            required=False,
-            help=(
-                "File containing the fitted charge against each atom once the charge fitting task was completed."
-            ),
-        )
 
         # Validate inputs namespace
         existing_validator = spec.inputs.validator
