@@ -150,8 +150,9 @@ class ChemShellParser(Parser):
                         descrip += f" ({input_fname})"
                     # Store the charges structure file
                     charges = {}
+                    from aiida.common import AIIDA_LOGGER
                     with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
-                        charges= [ [line.strip().split()[0], line.strip().split()[1]] for line in f if line.strip()]
+                        charges= [ [line.strip().split()[0].decode('utf-8'), line.strip().split()[1].decode('utf-8')] for line in f if line.strip()]
                         self.out( "fitted_charges", List(list=charges, label="Fitted charges"))
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
