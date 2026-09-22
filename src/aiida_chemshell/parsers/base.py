@@ -81,62 +81,63 @@ class ChemShellParser(Parser):
 
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:
-            dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
-            if self.node.inputs.optimisation_parameters.get("thermal", False):
-                self.parse_vibrational_analysis(
-                    self.retrieved.get_object_content(
-                        ChemShellCalculation.FILE_STDOUT, "r"
-                    )
-                )
-            elif self.node.inputs.optimisation_parameters.get("neb", "no") in [
-                "free",
-                "frozen",
-                "perpendicular",
-            ]:
-                self.parse_xyz_path(retrieved_tmp_folder / "nebpath.xyz", "neb_path")
-                self.parse_neb_info(retrieved_tmp_folder / "nebinfo")
-            elif dl_find_path.exists():
-                descrip = "Optimised structure from a ChemShell optimisation"
-                input_pk = self.node.inputs.structure.pk
-                descrip += f" of node {input_pk}"
-                if isinstance(self.node.inputs.structure, SinglefileData):
-                    input_fname = self.node.inputs.structure.filename
-                    descrip += f" ({input_fname})"
-                # Store the optimised structure either as a SinglefileData '.cjson'
-                # file or (by default) as an AiiDA StructureData node.
-                if self.node.base.extras.get("output_structure_as_file", False):
-                    with open(dl_find_path, "rb") as f:
-                        self.out(
-                            "optimised_structure",
-                            SinglefileData(
-                                file=f,
-                                filename=ChemShellCalculation.FILE_DLFIND,
-                                label="CJSON Structure File",
-                                description=descrip,
-                            ),
+            if "chargefitting_parameters" not in self.node.inputs or not self.node.inputs.chargefitting_parameters.get_dict():
+                dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
+                if self.node.inputs.optimisation_parameters.get("thermal", False):
+                    self.parse_vibrational_analysis(
+                        self.retrieved.get_object_content(
+                            ChemShellCalculation.FILE_STDOUT, "r"
                         )
-                else:
-                    with open(dl_find_path, "rb") as f:
-                        structure = chemsh_cjson_to_structure_data(f.read())
-                    structure.label = "Optimised Structure"
-                    structure.description = descrip
-                    self.out("optimised_structure", structure)
-                self.parse_optimisation_path(
-                    self.retrieved.get_object_content(
-                        ChemShellCalculation.FILE_STDOUT, "r"
                     )
-                )
-            else:
-                return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
-
-            if self.node.inputs.optimisation_parameters.get("save_path", False):
-                trj_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJPTH
-                trj_frc_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJFRC
-                if trj_path.exists():
-                    self.parse_xyz_path(trj_path, "trajectory_path")
-                    self.parse_xyz_forces(trj_frc_path, "trajectory_force")
+                elif self.node.inputs.optimisation_parameters.get("neb", "no") in [
+                    "free",
+                    "frozen",
+                    "perpendicular",
+                ]:
+                    self.parse_xyz_path(retrieved_tmp_folder / "nebpath.xyz", "neb_path")
+                    self.parse_neb_info(retrieved_tmp_folder / "nebinfo")
+                elif dl_find_path.exists():
+                    descrip = "Optimised structure from a ChemShell optimisation"
+                    input_pk = self.node.inputs.structure.pk
+                    descrip += f" of node {input_pk}"
+                    if isinstance(self.node.inputs.structure, SinglefileData):
+                        input_fname = self.node.inputs.structure.filename
+                        descrip += f" ({input_fname})"
+                    # Store the optimised structure either as a SinglefileData '.cjson'
+                    # file or (by default) as an AiiDA StructureData node.
+                    if self.node.base.extras.get("output_structure_as_file", False):
+                        with open(dl_find_path, "rb") as f:
+                            self.out(
+                                "optimised_structure",
+                                SinglefileData(
+                                    file=f,
+                                    filename=ChemShellCalculation.FILE_DLFIND,
+                                    label="CJSON Structure File",
+                                    description=descrip,
+                                ),
+                            )
+                    else:
+                        with open(dl_find_path, "rb") as f:
+                            structure = chemsh_cjson_to_structure_data(f.read())
+                        structure.label = "Optimised Structure"
+                        structure.description = descrip
+                        self.out("optimised_structure", structure)
+                    self.parse_optimisation_path(
+                        self.retrieved.get_object_content(
+                            ChemShellCalculation.FILE_STDOUT, "r"
+                        )
+                    )
                 else:
                     return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
+
+                if self.node.inputs.optimisation_parameters.get("save_path", False):
+                    trj_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJPTH
+                    trj_frc_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJFRC
+                    if trj_path.exists():
+                        self.parse_xyz_path(trj_path, "trajectory_path")
+                        self.parse_xyz_forces(trj_frc_path, "trajectory_force")
+                    else:
+                        return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
 
 
         if "chargefitting_parameters" in self.node.inputs:
