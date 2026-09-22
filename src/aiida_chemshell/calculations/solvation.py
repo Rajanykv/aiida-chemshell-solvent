@@ -31,6 +31,7 @@ class SolventCalculation(ChemShellCalculation):
 
     """
     FOLDER_SNAPSHOTS = "_snapshots"
+    FILE_SOLVATED_STRUCT = "_solvated.xyz"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -135,24 +136,13 @@ class SolventCalculation(ChemShellCalculation):
         )
 
         spec.output(
-            "Final_energy",
-            valid_type=Float,
-            required=True,
-            help="The final energy for the structure.",
-        )
-        spec.output(
-            "Charges_file",
-            valid_type=SinglefileData,
-            required=True,
-            help="The file containing the fitted  charges of atoms.",
-        )
-        spec.output(
-            "Fitted_charges",
-            valid_type=List,
+            "solvated_structure",
+            valid_type=(StructureData, SinglefileData),
             required=False,
-            help="The calculated fitted charges for the structure",
+            help=(
+                "Solvated structure before a Full MD simulation."
+            ),
         )
-
         spec.exit_code(
             307,
             "ERROR_NO_INPUTS",
@@ -161,14 +151,14 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.exit_code(
-            308,
+            311,
             "ERROR_MD_NOT_FINISHED",
             message=(
                 "MD run has not completed."
             ),
         )
         spec.exit_code(
-            309,
+            308,
             "ERROR_FF_NOT_DEFINED",
             message=(
                 "Force field file or force field string not found."
@@ -181,6 +171,14 @@ class SolventCalculation(ChemShellCalculation):
                 "MD snapshots not found. MD run has not completed."
             ),
         )
+        spec.exit_code(
+            309,
+            "ERROR_SOLVATED_STRUCTURE_NOT_FOUND",
+            message=(
+                "Solvated structure not found. Solvation did not finish not successfully."
+            ),
+        )
+
         return
 
     @classmethod
@@ -300,6 +298,8 @@ class SolventCalculation(ChemShellCalculation):
             job_str = "_ESPChargeStep"
         elif node.inputs.do_md_equillibrate.value:
             job_str = "_MDStep"
+            if node.inputs.dryrunmd:
+                job_str += "_Initialisation"
         else:
             job_str = "_SPStep"
         return "Chemshell_Solvation" + job_str
@@ -470,7 +470,8 @@ class SolventCalculation(ChemShellCalculation):
                     fname = self.inputs.solvent_box.filename
                 else:
                     raise Exception("Solvent box type not recognized")
-                script += f"solvent_structure = Fragment(coords='{fname:s}')\n"
+                script += f"solvent_bio = Fragment(coords='{fname:s}')\n"
+                script += f"solvent_structure = solvent_bio.castTo('fragment')\n"
 
             script += f"solute_structure = structure\n"
 
@@ -683,5 +684,6 @@ class SolventCalculation(ChemShellCalculation):
                 calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
         if "md_parameters" in self.inputs:
             calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
+            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
 
         return calc_info

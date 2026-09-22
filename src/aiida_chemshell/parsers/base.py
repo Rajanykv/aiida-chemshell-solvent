@@ -6,10 +6,11 @@ from pathlib import Path
 import numpy
 from aiida.common import ModificationNotAllowed
 from aiida.engine import ExitCode
-from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List
+from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List, StructureData
 from aiida.parsers.parser import Parser
 
 from aiida_chemshell.calculations.base import ChemShellCalculation
+from aiida_chemshell.calculations.solvation import SolventCalculation
 from aiida_chemshell.utils import chemsh_cjson_to_structure_data
 
 
@@ -24,29 +25,34 @@ class ChemShellParser(Parser):
             return self.exit_codes.ERROR_STDOUT_NOT_FOUND
         results_path = retrieved_tmp_folder / ChemShellCalculation.FILE_RESULTS
         if not (results_path).exists():
-            return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
+            #md does not have results object
+            if "md_parameters" in self.node.inputs and self.node.inputs.md_parameters.get_dict():
+                pass
+            else:
+                return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
 
         # Read the 'json' formatted results file
-        with open(results_path, "rb") as f:
-            results = json.loads(f.read())
+        if "md_parameters" not in self.node.inputs or not self.node.inputs.md_parameters.get_dict():
+            with open(results_path, "rb") as f:
+                results = json.loads(f.read())
 
-        # Extract the final energy
-        try:
-            self.out(
-                "energy",
-                Float(
-                    results["energy"][0],
-                    label="Final SCF Energy",
-                    description=(
-                        "The total (final SCF) energy of the system calculated by "
-                        "ChemShell."
+            # Extract the final energy
+            try:
+                self.out(
+                    "energy",
+                    Float(
+                        results["energy"][0],
+                        label="Final SCF Energy",
+                        description=(
+                            "The total (final SCF) energy of the system calculated by "
+                            "ChemShell."
+                        ),
                     ),
-                ),
-            )
-        except (KeyError, ValueError):
-            return self.exit_codes.ERROR_MISSING_FINAL_ENERGY
-        except ModificationNotAllowed as e:
-            raise e
+                )
+            except (KeyError, ValueError):
+                return self.exit_codes.ERROR_MISSING_FINAL_ENERGY
+            except ModificationNotAllowed as e:
+                raise e
 
         # Extract gradients/hessian if they are requested
         if "calculation_parameters" in self.node.inputs:
@@ -157,6 +163,31 @@ class ChemShellParser(Parser):
                         self.out( "fitted_charges", List(list=charges, label="Fitted charges"))
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
+
+        if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
+            from ase.io import read
+            with self.retrieved.open(SolventCalculation.FILE_SOLVATED_STRUCT, "r") as f:
+                atoms = read(f, format="xyz")
+                structure = StructureData(ase=atoms)
+                structure.label = "Solvated Structure"
+                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
+                self.out("solvated_structure", structure)
+
+        if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
+
+            input_pk = self.node.inputs.structure.pk
+            input2_pk = self.node.inputs.solvent_box.pk
+            descrip = "Snapshots from the Solvation MD run of"
+            descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
+
+            import tempfile
+            retrieved_folder = self.retrieved.get_object()
+            with tempfile.TemporaryDirectory() as temp_dir:
+                retrieved_folder.copy_tree(temp_dir, path=SolventCalculation.FOLDER_SNAPSHOTS)
+                folder_node = FolderData()
+                folder_node.put_object_from_tree(temp_dir)
+            self.out("snapshots", folder_node)
+
 
         return ExitCode(0)
     def parse_vibrational_analysis(self, stdout: str) -> None:

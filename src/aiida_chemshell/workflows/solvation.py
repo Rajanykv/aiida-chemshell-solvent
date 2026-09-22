@@ -3,6 +3,7 @@
 from aiida.common.exceptions import MissingEntryPointError
 from aiida.engine import ToContext, WorkChain
 from aiida.orm import ArrayData, Bool, Code, Dict, Float, SinglefileData, List, FolderData
+from aiida.orm import StructureData
 from aiida.plugins.factories import CalculationFactory
 
 from aiida_chemshell.calculations.solvation import SolventCalculation
@@ -28,11 +29,11 @@ class SolvationWorkChain(WorkChain):
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
-            cls.charge_fit,
-            cls.result_charge,
+            #cls.charge_fit,
+            #cls.result_charge,
             cls.validate_inputs_2,
-            #cls.solvate_md,
-            #cls.result_md,
+            cls.solvate_md,
+            cls.result_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
@@ -226,15 +227,15 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
+        #to avoid parsing output
+        inputs.update({"chargefitting_parameters": {},})
+
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
             f"Solvation Calculation Node pk: {self.node.pk}"
         )
-        if inputs.dryrunmd:
-            self.ctx.md = future
-        else:
-            return ToContext(md=future)
+        return ToContext(md=future)
 
         del inputs
         return
@@ -254,23 +255,17 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result_md(self):
-        if "do_md_equillibrate" in self.ctx.md.inputs:
-            if SolventCalculation.FOLDER_SNAPSHOTS in self.ctx.md.outputs.retrieved.list_object_names():
+        if "do_md_equillibrate" in self.ctx.md.inputs and self.ctx.md.is_finished:
 
-                input_pk = self.ctx.md.inputs.structure.pk
-                input2_pk = self.ctx.md.inputs.solvent_box.pk
-                descrip = "Snapshots from the Solvation MD run of"
-                descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
+            #if SolventCalculation.FILE_SOLVATED_STRUCT in self.ctx.md.outputs.retrieved.list_object_names():
+            if "solvated_structure" not in self.ctx.md.outputs:
+                return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND
+            if "snapshots" not in self.ctx.md.outputs:
+                if self.ctx.md.inputs.dryrunmd:
+                    pass
+                else:
+                    return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
 
-                import tempfile
-                retrieved_folder = self.ctx.md.outputs.retrieved.get_object()
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    retrieved_folder.copy_tree(temp_dir, path=SolventCalculation.FOLDER_SNAPSHOTS)
-                    folder_node = FolderData()
-                    folder_node.put_object_from_tree(temp_dir)
-                self.out("snapshots", folder_node)
-            else:
-                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
         else:
                 return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
         return
