@@ -110,8 +110,14 @@ class SolventCalculation(ChemShellCalculation):
             validator=cls.validate_md_parameters,
             help="A dictionary of parameters for the ChemShell MD Solvation.",
         )
+        spec.input(
+            "qm_esp_parameters",
+            valid_type=Dict,
+            required=False,
+            validator=cls.validate_qm_parameters,
+            help="A dictionary of parameters for the ChemShell QM calculation specifically for the charge fit step.",
+        )
 
-        #rajany check metadata is not inherited
         spec.inputs["metadata"]["options"]["resources"].default = {
             "num_machines": 1,
             "num_mpiprocs_per_machine": 4,

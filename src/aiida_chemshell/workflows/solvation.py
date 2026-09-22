@@ -28,11 +28,11 @@ class SolvationWorkChain(WorkChain):
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
-            #cls.charge_fit,
-            #cls.result_charge,
+            cls.charge_fit,
+            cls.result_charge,
             cls.validate_inputs_2,
-            cls.solvate_md,
-            cls.result_md,
+            #cls.solvate_md,
+            #cls.result_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
@@ -103,32 +103,32 @@ class SolvationWorkChain(WorkChain):
         """Perform the charge fitting."""
         inputs = self.exposed_inputs(SolventCalculation)
 
-        if inputs.dryrun:
-            if "qm_parameters" not in self.inputs:
+        if "qm_esp_parameters" not in self.inputs:
                 inputs["qm_parameters"] = Dict(
                 {
                 "theory": "NWChem",
-                "method": "dft",
+                "method": "hf",
                 "functional": "B3LYP",
                 "basis": "cc-pvdz",
                 }
             )
-
-        elif 'optimise' in self.ctx and self.ctx.optimise.is_finished:
-
-            if not self.ctx.optimise.is_finished_ok:
-                return ( "Optimisation has not finished successfully")
-
-            structure = self.ctx.optimise.outputs.optimised_structure
-            qm_parameters = self.ctx.optimise.inputs.qm_parameters.get_dict()
-
-            inputs.update({
-                    "structure"       : structure,
-                    "qm_parameters"   : qm_parameters,
-            })
-
         else:
-            return("Optimisation has not finished successully")
+                inputs["qm_parameters"] = self.inputs["qm_esp_parameters"]
+
+        if not inputs.dryrun:
+            if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
+
+                if not self.ctx.optimise.is_finished_ok:
+                    return ( "Optimisation has not finished successfully")
+
+                structure = self.ctx.optimise.outputs.optimised_structure
+
+                inputs.update({
+                    "structure"       : structure,
+                })
+
+            else:
+                return("Optimisation has not finished successully")
 
         inputs.update({
                     "do_charge_fit" :  Bool(True),
