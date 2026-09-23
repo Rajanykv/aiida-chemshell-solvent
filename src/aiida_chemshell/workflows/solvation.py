@@ -9,7 +9,7 @@ from aiida.plugins.factories import CalculationFactory
 from aiida_chemshell.calculations.solvation import SolventCalculation
 from aiida_chemshell.calculations.base import ChemShellCalculation
 from aiida_chemshell.workflows.isolated_atoms import IsolatedAtomicEnergiesWorkChain
-from copy import deepcopy
+from aiida.engine import ExitCode
 
 class SolvationWorkChain(WorkChain):
     """Steps in the Solvation Work Flow."""
@@ -268,5 +268,27 @@ class SolvationWorkChain(WorkChain):
 
         else:
                 return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
+
+        status = self.finished_status(self.ctx.md)
+        if status:
+            return ExitCode(988, status)
         return
 
+    def finished_status(self, calc_node):
+        if calc_node.is_killed:
+            return(f"Step {calc_node.process_label} was manually killed by user or daemon.")
+
+        elif calc_node.is_excepted:
+            return(f"Step {calc_node.process_label} crashed due to an unhandled Python exception.")
+
+        elif calc_node.is_failed:
+            return(f"Step {calc_node.process_label} finished with non-zero exit code: {calc_node.exit_status}.")
+
+        elif "_scheduler-stderr.txt" in calc_node.outputs.retrieved.list_object_names():
+            stderr = calc_node.outputs.retrieved.get_object_content("_scheduler-stderr.txt")
+            if stderr:
+               return(f"Step {calc_node.process_label} exited with errors; inspect _scheduler-stderr.txt/output.log.")
+
+        elif not calc_node.is_finished_ok:
+            return(f"Step {calc_node.process_label) is either still running or stopped abnormally.")
+        return
