@@ -290,5 +290,5 @@ class SolvationWorkChain(WorkChain):
                return(f"Step {calc_node.process_label} exited with errors; inspect _scheduler-stderr.txt/output.log.")
 
         elif not calc_node.is_finished_ok:
-            return(f"Step {calc_node.process_label) is either still running or stopped abnormally.")
+            return(f"Step {calc_node.process_label} is either still running or stopped abnormally.")
         return
