@@ -506,9 +506,9 @@ class SolventCalculation(ChemShellCalculation):
             script_md += ")\n"
 
             if self.inputs.dryrunmd:
-                    script_md += "job.run(dryrun=True)\njob.result.save()\n"
+                    script_md += "job.run(dryrun=True)\n"
             else:
-                    script_md += "job.run(dryrun=False)\njob.result.save()\n"
+                    script_md += "job.run(dryrun=False)\n"
 
             script += script_md
             return script
