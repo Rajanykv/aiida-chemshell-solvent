@@ -298,8 +298,10 @@ class SolventCalculation(ChemShellCalculation):
             job_str = "_ESPChargeStep"
         elif node.inputs.do_md_equillibrate.value:
             job_str = "_MDStep"
-            if node.inputs.dryrunmd:
+            if node.inputs.dryrunmd.value:
                 job_str += "_Initialisation"
+            else:
+                job_str += "_FullRun"
         else:
             job_str = "_SPStep"
         return "Chemshell_Solvation" + job_str
@@ -505,7 +507,7 @@ class SolventCalculation(ChemShellCalculation):
                         script_md += str(self.inputs.md_parameters.get(key))
             script_md += ")\n"
 
-            if self.inputs.dryrunmd:
+            if self.inputs.dryrunmd.value:
                     script_md += "job.run(dryrun=True)\n"
             else:
                     script_md += "job.run(dryrun=False)\n"

@@ -1,7 +1,7 @@
 """Workflows for geometry optimisation based taks."""
 
 from aiida.common.exceptions import MissingEntryPointError
-from aiida.engine import ToContext, WorkChain
+from aiida.engine import ToContext, WorkChain, if_
 from aiida.orm import ArrayData, Bool, Code, Dict, Float, SinglefileData, List, FolderData
 from aiida.orm import StructureData
 from aiida.plugins.factories import CalculationFactory
@@ -25,12 +25,14 @@ class SolvationWorkChain(WorkChain):
 
         ## Workflow ##
         #rajany todo add full/correct workflow
+        #if_(cls.not_md_dryrun)(
+        #   )
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
-            #cls.charge_fit,
-            #cls.result_charge,
+            cls.charge_fit,
+            cls.result_charge,
             cls.validate_inputs_2,
             cls.solvate_md,
             cls.result_md,
@@ -51,11 +53,11 @@ class SolvationWorkChain(WorkChain):
 
     def validate_inputs_2(self):
         """Validate the inputs provided to the WorkChain."""
-        has_file = "structure" in self.inputs
         has_box = "solvent_box" in self.inputs
+        #has_ff = "ff" in self.inputs.mm_parameters.get_dict()
         #has_ff = "force_field_file" in self.inputs
         #if has_ff and "mm_parameters" not in self.inputs:
-        if not has_file and not has_box:
+        if not has_box:
             return SolventCalculation.exit_codes.ERROR_NO_INPUTS
         return None
 
@@ -152,15 +154,18 @@ class SolvationWorkChain(WorkChain):
         #avoid parsing output at each step
         inputs["optimisation_parameters"] = {}
 
-        future = self.submit(SolventCalculation, **inputs)
-        future.label = SolventCalculation.default_process_label(future)
-        future.description = (
-            f"Charge Fitting Calculation Node pk: {self.node.pk}"
-        )
-        if inputs.dryrun:
-            self.ctx.chargefit = future
-        else:
-            return ToContext(chargefit=future)
+        #do not submit if a dryrunmd; for testing:rajany#todo remove later
+        if not self.inputs.dryrunmd.value:
+            future = self.submit(SolventCalculation, **inputs)
+            future.label = SolventCalculation.default_process_label(future)
+            future.description = (
+                f"Charge Fitting Calculation Node pk: {self.node.pk}"
+            )
+            if inputs.dryrun:
+                self.ctx.chargefit = future
+            else:
+                return ToContext(chargefit=future)
+
         del inputs
         return
 
@@ -168,11 +173,7 @@ class SolvationWorkChain(WorkChain):
         """Perform the classical MD equillibration step."""
 
         inputs = self.exposed_inputs(SolventCalculation)
-        if inputs.dryrun:
-            inputs.update({
-                     "structure": self.inputs.structure,
-        })
-        else:
+        if not inputs.dryrun:
             inputs.update({
                      "structure" : self.ctx.optimise.outputs.optimised_structure
         })
@@ -249,6 +250,8 @@ class SolvationWorkChain(WorkChain):
 
     def result_charge(self):
         """Extract the final workflow results."""
+        if "chargefit" not in self.ctx:
+            return
         if not "fitted_charges" in self.ctx.chargefit.outputs:
             if not "charges_file" in self.ctx.chargefit.outputs:
                 return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
@@ -261,7 +264,7 @@ class SolvationWorkChain(WorkChain):
             if "solvated_structure" not in self.ctx.md.outputs:
                 return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND
             if "snapshots" not in self.ctx.md.outputs:
-                if self.ctx.md.inputs.dryrunmd:
+                if self.ctx.md.inputs.dryrunmd.value:
                     pass
                 else:
                     return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
@@ -273,6 +276,9 @@ class SolvationWorkChain(WorkChain):
         if status:
             return ExitCode(988, status)
         return
+
+    def not_md_dryrun(self):
+        return not self.inputs.dryrunmd.value
 
     def finished_status(self, calc_node):
         if calc_node.is_killed:
