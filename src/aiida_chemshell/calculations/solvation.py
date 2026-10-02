@@ -46,11 +46,11 @@ class SolventCalculation(ChemShellCalculation):
         super().define(spec)
 
         spec.input(
-            "do_sp",
+            "do_qmmm",
              valid_type = Bool,
              default=lambda: Bool(False),
              required = True,
-             help = "Whether to do a single point energy calculation. (default False)"
+             help = "Whether to do a qmmm sp calculation. (default False)"
         )
         spec.input(
             "do_init_optimise",
@@ -118,6 +118,12 @@ class SolventCalculation(ChemShellCalculation):
             validator=cls.validate_qm_parameters,
             help="A dictionary of parameters for the ChemShell QM calculation specifically for the charge fit step.",
         )
+        spec.input(
+            "qmmm_parameters",
+            valid_type=Dict,
+            required=False,
+            #validator=cls.validate_qm_parameters,
+            help="A dictionary of parameters for the ChemShell QMMM calculation.",
 
         spec.inputs["metadata"]["options"]["resources"].default = {
             "num_machines": 1,
@@ -556,16 +562,6 @@ class SolventCalculation(ChemShellCalculation):
         calcInfo : CalcInfo
             An `aiida.common.CalcInfo` instance.
         """
-
-        #rajany diag
-        inputs_list = [self.inputs.do_opt_equillibrate.value, 
-                       self.inputs.do_init_optimise.value,
-                       self.inputs.do_charge_fit.value,
-                       self.inputs.do_md_equillibrate.value]
-        with folder.open('inputs.dat', 'w') as f:
-            f.write(f"INPUTS = \n{inputs_list}\n")
-
-        #end of diag
 
         # Create the ChemShell input script
         input_script = self.chemsh_script_generator()

@@ -241,6 +241,84 @@ class SolvationWorkChain(WorkChain):
         del inputs
         return
 
+    def setup_qmmm(self):
+        """Prepare QMMM and do a dryrun."""
+
+        inputs = self.exposed_inputs(SolventCalculation)
+        if not inputs.dryrun:
+            inputs.update({
+                     "structure" : self.ctx.optimise.outputs.optimised_structure
+        })
+        if 'qmmm_parameters' in inputs:
+            if 'qm_parameters' in inputs.qmmm_parameters.get_dict():        #if qmmm_chk:
+                "qm_parameters" = Dict(inputs.qmmm_parameters.get_dict().qm_parameters)
+            elif 'qm_parameters' in inputs:
+                "qm_parameters" = inputs.qm_parameters,
+            else:
+                "qm_parameters" = self.ctx.optimise.inputs.qm_parameters
+
+        inputs.update({
+                     "do_qmmm" : Bool(True),
+        })
+
+        if "mm_parameters" not in self.inputs:
+            mm_parameters = {"theory": "DL_POLY", 
+        }
+        elif "mm_parameters" in self.inputs:
+            mm_parameters = self.inputs["mm_parameters"].get_dict()
+
+        if "force_field_file" not in self.inputs and "ff" not in self.inputs.mm_parameters.get_dict():
+            mm_parameters.update({ "ff" : "charmm"})
+
+        #else:
+        #rajany todo
+        #generate/access prepared force field
+
+        inputs["mm_parameters"] = Dict(mm_parameters)
+
+        if "md_parameters" not in inputs:
+            md_parameters = {
+                'length_npt'            : 50,         # in fs (timestep: 2 fs)
+                'length_nvt'            : 20,         # in fs (timestep: 2 fs)
+                'length_production'     : 20,        # in fs (timestep: 2 fs)
+                'max_ncycles'           : 20,
+                'minimisation_npt'      : 5,
+                'minimisation_nvt'      : 5,
+                'solutes_dist'          : 3.0,
+                'padding'               : 50.0,
+                'nsnapshots'            : 10,
+                'fixed_npt'             : '',
+
+        }
+        else:
+            md_parameters = self.inputs["md_parameters"].get_dict()
+
+        md_parameters.update({
+                'driver'                :'mm_theory',
+                'neutralise'            : True,
+        })
+        inputs["md_parameters"] = Dict(md_parameters)
+
+        #if "qmmm_parameters" not in inputs:
+        #    inputs["qmmm_parameters"] = Dict({"qm_region": []})
+
+        if 'metadata' in self.inputs.chemsh:
+            inputs["metadata"] = self.inputs.chemsh["metadata"]
+
+        #to avoid parsing output
+        inputs.update({"chargefitting_parameters": {},})
+
+        future = self.submit(SolventCalculation, **inputs)
+        future.label = SolventCalculation.default_process_label(future)
+        future.description = (
+            f"Solvation Calculation Node pk: {self.node.pk}"
+        )
+        return ToContext(md=future)
+
+        del inputs
+        return
+
+
 #template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
         """Extract the final workflow results."""
