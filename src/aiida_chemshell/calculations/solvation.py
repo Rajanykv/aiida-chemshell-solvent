@@ -55,7 +55,7 @@ class SolventCalculation(ChemShellCalculation):
              help = "Whether to do a qmmm sp calculation. (default False)"
         )
         spec.input(
-            "do_init_optimise",
+            "do_optimise",
              valid_type = Bool,
              default=lambda: Bool(False),
              required = True,
@@ -74,13 +74,6 @@ class SolventCalculation(ChemShellCalculation):
              default=lambda: Bool(False),
              required = True,
              help = "Whether to do an MD equillibration step (default False)"
-        )
-        spec.input(
-            "do_opt_equillibrate",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do an optimisation instead of MD equillibration(default False)"
         )
         spec.input(
             "dryrunmd",
@@ -402,9 +395,7 @@ class SolventCalculation(ChemShellCalculation):
         str
             The process label based on what inputs have been provided.
         """
-        if node.inputs.do_opt_equillibrate.value:
-            job_str = "_OptStep"
-        elif node.inputs.do_init_optimise.value:
+        if node.inputs.do_optimise.value:
             job_str = "_OptStep"
         elif node.inputs.do_charge_fit.value:
             job_str = "_ESP_FF_Step"
@@ -479,7 +470,7 @@ class SolventCalculation(ChemShellCalculation):
                 script += param_str + ")\n"
 
         script_opt = ""
-        if self.inputs.do_init_optimise.value or self.inputs.do_opt_equillibrate.value:
+        if self.inputs.do_optimise.value:
             # Run a geometry optimisation using DL_FIND
             #rajany todo- determine if mm opt or qmmmopt option is necessary in the workflow
 

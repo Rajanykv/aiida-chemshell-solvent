@@ -63,7 +63,7 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.exposed_inputs(SolventCalculation)
         inputs.update({
-                  "do_init_optimise": Bool(True),
+                  "do_optimise": Bool(True),
         })
 
         if "qm_parameters" not in self.inputs:
