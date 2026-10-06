@@ -31,8 +31,8 @@ class ChemShellParser(Parser):
             else:
                 return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
 
-        # Read the 'json' formatted results file
         if "md_parameters" not in self.node.inputs or not self.node.inputs.md_parameters.get_dict():
+        # Read the 'json' formatted results file
             with open(results_path, "rb") as f:
                 results = json.loads(f.read())
 
@@ -128,6 +128,16 @@ class ChemShellParser(Parser):
                         structure.label = "Optimised Structure"
                         structure.description = descrip
                         self.out("optimised_structure", structure)
+                    if "chargefitting_parameters" in self.node.inputs:
+                        with open(dl_find_path, "rb") as f:
+                                self.out("optimised_structure_file", SinglefileData(
+                                    file=f,
+                                    filename=ChemShellCalculation.FILE_DLFIND,
+                                    label="CJSON Structure File",
+                                    description=descrip,
+                                    ),
+                    )
+
                     self.parse_optimisation_path(
                         self.retrieved.get_object_content(
                             ChemShellCalculation.FILE_STDOUT, "r"
@@ -157,22 +167,49 @@ class ChemShellParser(Parser):
                         descrip += f" ({input_fname})"
                     # Store the charges structure file
                     charges = {}
-                    from aiida.common import AIIDA_LOGGER
                     with self.retrieved.open(ChemShellCalculation.FILE_CHARGES, "rb") as f:
                         charges= [ [line.strip().split()[0].decode('utf-8'), line.strip().split()[1].decode('utf-8')] for line in f if line.strip()]
                         self.out( "fitted_charges", List(list=charges, label="Fitted charges"))
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 
+            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
+            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
+            if filepath.exists():
+                from ase.io import read
+                atoms = read(filepath, format="proteindatabank")
+                structure = StructureData(ase=atoms)
+                structure.label = "Solvated Structure"
+                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
+                self.out("solute_in_solvent_struct", structure)
+                with open(filepath, "rb") as f:
+                    self.out( "solute_in_solvent_struct_file", SinglefileData(
+                                    file=f,
+                                    filename=filename,
+                                    label="Solvated Structure file",
+                                    description= "Solute structure solvated in a solvent to prepare for the MD run",
+                                ),
+                            )
+
+            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+            if filepath.exists():
+                with open(filepath, "rb") as f:
+                    self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
+                              label="Combined Force Field of Solute+Solvent", 
+                              description = "Combined Force Field of Solute+Solvent",
+                    ))
+
         if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
             from ase.io import read
-            with self.retrieved.open(SolventCalculation.FILE_SOLVATED_STRUCT, "r") as f:
+            with self.retrieved.open(SolventCalculation.FILE_SOLVATED_STRUCT, "rb") as f:
                 atoms = read(f, format="xyz")
                 structure = StructureData(ase=atoms)
                 structure.label = "Solvated Structure"
                 structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
                 self.out("solvated_structure", structure)
 
+        #rajany todo
         if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
 
             input_pk = self.node.inputs.structure.pk
@@ -188,8 +225,8 @@ class ChemShellParser(Parser):
                 folder_node.put_object_from_tree(temp_dir)
             self.out("snapshots", folder_node)
 
-
         return ExitCode(0)
+
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
         read = False
