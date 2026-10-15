@@ -544,6 +544,8 @@ class ChemShellCalculation(CalcJob):
             "pseudopotential": str | dict,
             "restart": bool,
             "scf": float,
+            "tol_energy": float,
+            "dispersion": str,
         }
 
     @classmethod

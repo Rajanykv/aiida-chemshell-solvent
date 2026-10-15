@@ -202,8 +202,8 @@ class ChemShellParser(Parser):
 
         if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
             from ase.io import read
-            with self.retrieved.open(SolventCalculation.FILE_SOLVATED_STRUCT, "rb") as f:
-                atoms = read(f, format="xyz")
+            with self.retrieved.as_path(SolventCalculation.FILE_SOLVATED_STRUCT) as fpath:
+                atoms = read(fpath, format="xyz")
                 structure = StructureData(ase=atoms)
                 structure.label = "Solvated Structure"
                 structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
