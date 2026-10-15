@@ -31,7 +31,6 @@ class SolvationWorkChain(WorkChain):
             cls.validate_inputs_1,
             cls.qm_optimise,
             cls.result_opt,
-            cls.validate_inputs_2,
             cls.solvate_md,
             cls.result_md,
             #cls.setup_qmmm,

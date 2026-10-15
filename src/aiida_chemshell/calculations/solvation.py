@@ -510,12 +510,6 @@ class SolventCalculation(ChemShellCalculation):
                 script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
             return script
 
-        if "solvent_box" in self.inputs:
-                if isinstance(self.inputs.solvent_box, SinglefileData):
-                    fname = self.inputs.solvent_box.filename
-                else:
-                    raise Exception("Solvent box type not recognized")
-
         script_ch = ""
         if self.inputs.do_charge_fit.value:
             # Run a Charge fitting task
@@ -738,14 +732,6 @@ class SolventCalculation(ChemShellCalculation):
                     self.inputs.force_field_file.uuid,
                     self.inputs.force_field_file.filename,
                     self.inputs.force_field_file.filename,
-                )
-            )
-        if "solvent_box" in self.inputs:
-            calc_info.local_copy_list.append(
-                (
-                    self.inputs.solvent_box.uuid,
-                    self.inputs.solvent_box.filename,
-                    self.inputs.solvent_box.filename,
                 )
             )
 
