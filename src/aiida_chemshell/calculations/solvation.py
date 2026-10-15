@@ -565,6 +565,11 @@ class SolventCalculation(ChemShellCalculation):
                             param_str += key + "='" + val + "'" + ", "
                         else:
                             param_str += key + "=" + str(val) + ", "
+
+                    if mm_theory_key.lower() == "dl_poly":
+                        numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
+                        script += f"sysmpi= 'mpirun -np {numprocs}', "
+
                     script += f"{param_str:s})\n"
 
                     #rajany todo: finalise the format. use for now, the name that works
@@ -659,6 +664,11 @@ class SolventCalculation(ChemShellCalculation):
         """
 
         # Create the ChemShell input script
+
+        self.n_machines = self.inputs.metadata.options.resources.get("num_machines")
+        self.n_mpi_pm = self.inputs.metadata.options.resources.get("num_mpiprocs_per_machine")
+        self.tot_mpi = self.n_machines * self.n_mpi_pm
+
         input_script = self.chemsh_script_generator()
         with folder.open(SolventCalculation.FILE_SCRIPT, "w") as f:
             f.write(input_script)
@@ -671,14 +681,9 @@ class SolventCalculation(ChemShellCalculation):
                 SolventCalculation.FILE_SCRIPT,
             ]
         else:
-            n_machines = self.inputs.metadata.options.resources.get("num_machines")
-            n_mpi_pm = self.inputs.metadata.options.resources.get(
-                "num_mpiprocs_per_machine"
-            )
-            tot_mpi = n_machines * n_mpi_pm
             code_info.cmdline_params = [
                 "-np",
-                self.inputs.metadata.options.resources.get("tot_num_mpiprocs", tot_mpi),
+                self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi),
                 SolventCalculation.FILE_SCRIPT,
             ]
         code_info.stdout_name = SolventCalculation.FILE_STDOUT
