@@ -32,15 +32,12 @@ class SolvationWorkChain(WorkChain):
             cls.qm_optimise,
             cls.result_opt,
             cls.validate_inputs_2,
-            cls.chargefit_generate_ff,
-            cls.result_charge_ff,
             cls.solvate_md,
             cls.result_md,
             #cls.setup_qmmm,
             #cls.qmmm_opt,
             #cls.result,
         )
-
         return
 
     def validate_inputs_1(self):
@@ -98,7 +95,7 @@ class SolvationWorkChain(WorkChain):
         del inputs
         return
 
-    def chargefit_generate_ff(self):
+    def chargefit(self):
         """Perform the charge fitting."""
         inputs = self.exposed_inputs(SolventCalculation)
 
@@ -146,8 +143,8 @@ class SolvationWorkChain(WorkChain):
 
         if "solvent_parameters" not in self.inputs:
             inputs["solvent_parameters"] = Dict({
-                "solv" : "water",
-                "box" : 30.0,
+                "solvent_name" : "water",
+                "box_halflength" : 30,
         })
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
@@ -155,46 +152,38 @@ class SolvationWorkChain(WorkChain):
         #avoid parsing output at each step
         inputs.update({ "optimisation_parameters" : {}, })
 
-        #do not submit if a dryrunmd; for testing:rajany#todo remove later
         #if not self.inputs.dryrunmd.value:
-        future = self.submit(SolventCalculation, **inputs)
-        future.label = SolventCalculation.default_process_label(future)
-        future.description = (
-            f"Charge Fitting Calculation Node pk: {self.node.pk}"
-        )
-        if inputs.dryrun:
-            self.ctx.chargefit = future
-        else:
-            return ToContext(chargefit=future)
+        #future = self.submit(SolventCalculation, **inputs)
+        #future.label = SolventCalculation.default_process_label(future)
+        #future.description = (
+        #    f"Charge Fitting Calculation Node pk: {self.node.pk}"
+        #)
+        #if inputs.dryrun:
+        #    self.ctx.chargefit = future
+        #else:
+        #    return ToContext(chargefit=future)
 
-        del inputs
+        #del inputs
+        return inputs
         return
 
     def solvate_md(self):
         """Perform the classical MD equillibration step."""
 
-        inputs = self.exposed_inputs(SolventCalculation)
-        if not inputs.dryrun:
-            inputs.update({
-                     "structure" : self.ctx.chargefit.outputs.solute_in_solvent_struct_file
-        })
-                #if qmmm_chk:
-                #"qm_parameters": self.ctx.energy.inputs.qm_parameters,
+        #inputs = self.exposed_inputs(SolventCalculation)
 
+        inputs = self.chargefit()
         inputs.update({
                      "do_md_equillibrate" : Bool(True),
         })
 
         if "mm_parameters" not in self.inputs:
-            mm_parameters = {"theory": "DL_POLY", 
+            mm_parameters = {"theory": "DL_POLY",
         }
         elif "mm_parameters" in self.inputs:
             mm_parameters = self.inputs["mm_parameters"].get_dict()
 
         inputs["mm_parameters"] = Dict(mm_parameters)
-
-        inputs["force_field_file"] =  self.ctx.chargefit.outputs.solute_in_solvent_ff
-
 
         if "md_parameters" not in inputs:
             md_parameters = {
@@ -219,14 +208,8 @@ class SolvationWorkChain(WorkChain):
         })
         inputs["md_parameters"] = Dict(md_parameters)
 
-        #if "qmmm_parameters" not in inputs:
-        #    inputs["qmmm_parameters"] = Dict({"qm_region": []})
-
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
-
-        #to avoid parsing output
-        inputs.update({"chargefitting_parameters": {},})
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -259,7 +242,7 @@ class SolvationWorkChain(WorkChain):
         })
 
         if "mm_parameters" not in self.inputs:
-            mm_parameters = {"theory": "DL_POLY", 
+            mm_parameters = {"theory": "DL_POLY",
         }
         elif "mm_parameters" in self.inputs:
             mm_parameters = self.inputs["mm_parameters"].get_dict()
@@ -293,7 +276,8 @@ class SolvationWorkChain(WorkChain):
 
 #template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
-        """Extract the final workflow results."""
+        """Extract the results."""
+
         if "optimised_structure" not in self.ctx.optimise.outputs:
             return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
         if "optimised_structure_file" not in self.ctx.optimise.outputs:
@@ -306,16 +290,13 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result_charge_ff(self):
-        """Extract the final workflow results."""
+        """Extract the results."""
+
         if "chargefit" not in self.ctx:
             return
         if not "fitted_charges" in self.ctx.chargefit.outputs:
             if not "charges_file" in self.ctx.chargefit.outputs:
                 return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
-        if not "solute_in_solvent_ff" in self.ctx.chargefit.outputs:
-                return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
-        if not "solute_in_solvent_struct_file" in self.ctx.chargefit.outputs:
-                return( SolventCalculation.exit_codes.ERROR_SOLUTE_IN_SOLVENT_NOT_FOUND)
         status = self.finished_status(self.ctx.chargefit)
         if status:
             return ExitCode(988, status)
@@ -326,8 +307,14 @@ class SolvationWorkChain(WorkChain):
         if "do_md_equillibrate" in self.ctx.md.inputs and self.ctx.md.is_finished:
 
             #if SolventCalculation.FILE_SOLVATED_STRUCT in self.ctx.md.outputs.retrieved.list_object_names():
+            if not "fitted_charges" in self.ctx.md.outputs:
+                if not "charges_file" in self.ctx.md.outputs:
+                    return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
+
             if "solvated_structure" not in self.ctx.md.outputs:
                 return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND
+            #if not "solute_in_solvent_ff" in self.ctx.md.outputs:
+            #    return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
             if "snapshots" not in self.ctx.md.outputs:
                 if self.ctx.md.inputs.dryrunmd.value:
                     pass

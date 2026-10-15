@@ -32,7 +32,7 @@ class SolventCalculation(ChemShellCalculation):
     """
     FOLDER_SNAPSHOTS = "_snapshots"
     FILE_SOLVATED_STRUCT = "_solvated.xyz"
-    FILE_SOLUTE_SOLVENT_FF = "solute_in_solv.ff"
+    FILE_SOLUTE_SOLVENT_FF = "_solvated.ff"
     FILE_SOLUTE_SOLVENT_STRUCT = "solute_in_solvent.pqr"
 
     @classmethod
@@ -276,6 +276,7 @@ class SolventCalculation(ChemShellCalculation):
                 'padding'               : float,
                 'nsnapshots'            : int,
                 'fixed_npt'             : str,
+                'freeze_solute'         : bool,
 
         }
     @classmethod
@@ -326,8 +327,8 @@ class SolventCalculation(ChemShellCalculation):
             A tuple of valid parameter keys for the Chosen Solvent.
         """
         return {
-                'solv'         : str,
-                'box'          : int,
+                'solvent_name'         : str,
+                'box_halflength'       : int,
         }
 
     @classmethod
@@ -376,7 +377,7 @@ class SolventCalculation(ChemShellCalculation):
         stored in the AiiDA database.
 
         Returns
-        -------   
+        -------
         str
             The process label based on what inputs have been provided.
         """
@@ -395,18 +396,24 @@ class SolventCalculation(ChemShellCalculation):
         str
             The process label based on what inputs have been provided.
         """
-        if node.inputs.do_optimise.value:
-            job_str = "_OptStep"
-        elif node.inputs.do_charge_fit.value:
-            job_str = "_ESP_FF_Step"
-        elif node.inputs.do_md_equillibrate.value:
-            job_str = "_MDStep"
+        if node.inputs.do_charge_fit.value:
+            if not node.inputs.do_md_equillibrate.value:
+                job_str = "_ESP_Step"
+        if node.inputs.do_md_equillibrate.value:
+            if node.inputs.do_charge_fit.value:
+                job_str = "_ESP+"
+            else:
+                job_str = ""
+            job_str += "MD"
             if node.inputs.dryrunmd.value:
                 job_str += "_Initialisation"
             else:
                 job_str += "_FullRun"
+            job_str += "_Step"
         elif node.inputs.do_qmmm.value:
             job_str = "_QMMMStep"
+        elif node.inputs.do_optimise.value:
+            job_str = "_OptStep"
         else:
             job_str = "_SPStep"
         return "Chemshell_Solvation" + job_str
@@ -496,21 +503,18 @@ class SolventCalculation(ChemShellCalculation):
                     script_opt += "job.run(dryrun=False)\njob.result.save()\n"
 
             script += script_opt
-            if (not self.inputs.optimisation_parameters.get("thermal", False) 
+            if (not self.inputs.optimisation_parameters.get("thermal", False)
                    and self.inputs.optimisation_parameters.get("neb", "no") not in [
                    "free", "frozen", "perpendicular",
                     ]):
                 script += f'structure.save("{SolventCalculation.FILE_DLFIND}")\n'
             return script
 
-        # Create Solvent box structure object if requested
         if "solvent_box" in self.inputs:
                 if isinstance(self.inputs.solvent_box, SinglefileData):
                     fname = self.inputs.solvent_box.filename
                 else:
                     raise Exception("Solvent box type not recognized")
-                script += f"solvent_bio = Fragment(coords='{fname:s}')\n"
-                script += f"solvent_structure = solvent_bio.castTo('fragment')\n"
 
         script_ch = ""
         if self.inputs.do_charge_fit.value:
@@ -536,22 +540,6 @@ class SolventCalculation(ChemShellCalculation):
             script_ch += f"savetxt('{SolventCalculation.FILE_CHARGES}', charges, delimiter=' ', fmt='%s')\n"
             script    += script_ch
 
-            script_ch = f"from chemsh.forcefield import nonbd_dlf\n"
-            script_ch += f"combined_frag = nonbd_dlf.nonbondff(frag = structure, fragsol = solvent_structure"
-            for key in self.inputs.solvent_parameters.keys():
-                    if isinstance(self.inputs.solvent_parameters.get(key), str):
-                        script_ch += ", " + key + "='"
-                        script_ch += self.inputs.solvent_parameters.get(key) + "'"
-                    else:
-                        script_ch += ", " + key + "="
-                        script_ch += str(self.inputs.solvent_parameters.get(key))
-            script_ch += ")\n"
-
-            script_ch += f"combined_frag.save('solute_in_solvent.pqr')\n"
-
-            script    += script_ch
-            return script
-
         # Perform an MD
         if self.inputs.do_md_equillibrate.value:
             if "mm_parameters" not in self.inputs:
@@ -565,15 +553,7 @@ class SolventCalculation(ChemShellCalculation):
                     mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
 
                     script += f"from chemsh import {mm_theory_key:s}\n"
-                    script += f"mmtheory = {mm_theory_key:s}"
-                    if "force_field_file" in self.inputs:
-                        script += f"(ff = '{self.inputs.force_field_file.filename:s}'"
-                    #elif 'ff' in self.inputs["mm_parameters"]:
-                    # if isinstance(self.inputs.mm_parameters["ff"], str):
-                    #     ff=self.inputs.mm_parameters['ff']
-                    else:
-                      return ChemShellCalculation.exit_codes.ERROR_FF_NOT_DEFINED
-
+                    script += f"mmtheory = {mm_theory_key:s}("
                     param_str = ""
                     for key in self.inputs.mm_parameters.keys():
                         if key == "theory":
@@ -582,11 +562,14 @@ class SolventCalculation(ChemShellCalculation):
                             continue
                         val = self.inputs.mm_parameters.get(key)
                         if isinstance(val, str):
-                            param_str += ", " + key + "='" + val + "'"
+                            param_str += key + "='" + val + "'" + ", "
                         else:
-                            param_str += ", " + key + "=" + str(val)
+                            param_str += key + "=" + str(val) + ", "
                     script += f"{param_str:s})\n"
 
+                    #rajany todo: finalise the format. use for now, the name that works
+                    #solvent_string = f"{self.inputs.solvent_parameters['solvent_name']:s}{self.inputs.solvent_parameters['box_halflength']}"
+                    solvent_string = f"{self.inputs.solvent_parameters['solvent_name']:s}"
 
             script += f"solute_structure = structure\n"
 
@@ -604,11 +587,23 @@ class SolventCalculation(ChemShellCalculation):
 
             script += "from chemsh import Solvation\n"
             script_md = ""
-            script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure"
+            script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure, "
+            script_md += f"solvent = '{solvent_string}', "
+
+            if "force_field_file" in self.inputs:
+                script_md += f"ff = '{self.inputs.force_field_file.filename:s}'"
+            elif 'ff' in self.inputs["mm_parameters"]:
+               if isinstance(self.inputs.mm_parameters["ff"], str):
+                   ff=self.inputs.mm_parameters['ff']
+                   script_md += f"ff = '{ff:s}'"
+            else:
+              return ChemShellCalculation.exit_codes.ERROR_FF_NOT_DEFINED
+
             for key in self.inputs.md_parameters.keys():
 
-                    if key == "driver" or key == "solute" or key == "solvent":
+                    if key == "driver" or key == "solute" or key == "solvent" or key == "ff":
                         continue
+
                     if isinstance(self.inputs.md_parameters.get(key), str):
                         script_md += ", " + key + "='"
                         script_md += self.inputs.md_parameters.get(key) + "'"
@@ -625,18 +620,13 @@ class SolventCalculation(ChemShellCalculation):
             script += script_md
             return script
 
- # Perform a single point energy calculation (default calculation type)
-        if self.inputs.do_sp:
-            script += "from chemsh import SP\n"
-            if "calculation_parameters" not in self.inputs:
-                # Assign default values if none are given
-                self.inputs.calculation_parameters = Dict(dict={})
-
+ # Perform a QMMM
+        if self.inputs.do_qmmm:
+            script += "from chemsh import QMMM\n"
 
             theory_str = "qmtheory"
             script_qm = ""
-            # Runs a QM single point energy calculation
-            script_qm += f"job = SP(theory={theory_str:s}, "
+            script_qm += f"job = QMMM(theory={theory_str:s}, "
             grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
             script_qm += f"gradients={grad_str:s}, "
             hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
@@ -648,6 +638,7 @@ class SolventCalculation(ChemShellCalculation):
                     script_qm += "job.run(dryrun=False)\njob.result.save()\n"
 
             script += script_qm
+            return script
 
         return script
 
