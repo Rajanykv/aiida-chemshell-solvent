@@ -209,23 +209,10 @@ class ChemShellParser(Parser):
                 structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
                 self.out("solvated_structure", structure)
 
-        #rajany todo
-        if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
-
-            input_pk = self.node.inputs.structure.pk
-            input2_pk = self.node.inputs.solvent_box.pk
-            descrip = "Snapshots from the Solvation MD run of"
-            descrip += f"structure node {input_pk} in solvent node {input2_pk} \n"
-
-            import tempfile
-            retrieved_folder = self.retrieved.get_object()
-            with tempfile.TemporaryDirectory() as temp_dir:
-                retrieved_folder.copy_tree(temp_dir, path=SolventCalculation.FOLDER_SNAPSHOTS)
-                folder_node = FolderData()
-                folder_node.put_object_from_tree(temp_dir)
-            self.out("snapshots", folder_node)
-
-        return ExitCode(0)
+        #rajany todo : do not parse it as it is not needed elsewhere
+        #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
+        #    descrip = f"Snapshots from the Solvation MD run \n"
+        #    self.out("snapshots", folder_node)
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""

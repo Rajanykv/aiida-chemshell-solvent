@@ -224,10 +224,11 @@ class SolvationWorkChain(WorkChain):
         """Prepare QMMM and do a (dry)run."""
 
         inputs = self.exposed_inputs(SolventCalculation)
-        if not inputs.dryrun:
-            inputs.update({
-                     "structure" : self.ctx.optimise.outputs.optimised_structure_file
+
+        inputs.update({
+                     "do_qmmm" : Bool(True),
         })
+
         if 'qmmm_parameters' in inputs:
             if 'qm_parameters' in inputs.qmmm_parameters.get_dict():
                 qm_parameters = Dict(inputs.qmmm_parameters.get_dict().qm_parameters)
@@ -236,23 +237,16 @@ class SolvationWorkChain(WorkChain):
             else:
                 qm_parameters = self.ctx.optimise.inputs.qm_parameters
 
-        inputs.update({
-                     "do_qmmm" : Bool(True),
-        })
+            if 'mm_parameters' in inputs.qmmm_parameters.get_dict():
+                mm_parameters = Dict(inputs.qmmm_parameters.get_dict().mm_parameters)
+            elif "mm_parameters" in self.inputs:
+                mm_parameters = self.inputs["mm_parameters"]
+            elif "mm_parameters" not in self.inputs:
+                mm_parameters = Dict({"theory": "DL_POLY",})
 
-        if "mm_parameters" not in self.inputs:
-            mm_parameters = {"theory": "DL_POLY",
-        }
-        elif "mm_parameters" in self.inputs:
-            mm_parameters = self.inputs["mm_parameters"].get_dict()
-
-
-        inputs["mm_parameters"] = Dict(mm_parameters)
+        inputs["mm_parameters"] = mm_parameters
         inputs["qm_parameters"] = qm_parameters
 
-
-        #if "qmmm_parameters" not in inputs:
-        #    inputs["qmmm_parameters"] = Dict({"qm_region": []})
 
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
@@ -262,12 +256,22 @@ class SolvationWorkChain(WorkChain):
                         "md_parameters" : {},
                        })
 
-        future = self.submit(SolventCalculation, **inputs)
-        future.label = SolventCalculation.default_process_label(future)
-        future.description = (
-            f"Solvation Calculation Node pk: {self.node.pk}"
-        )
-        return ToContext(qmmm=future)
+
+        retrieved_folder = self.ctx.md.outputs.retrieved
+        with retrieved_folder.as_path() as folder:
+            snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+            n=0
+            for file_path in snapshots_dir.iterdir():
+              if file_path.is_file():
+                  inputs.update({ "structure" : SinglefileData(file=file_path) })
+                  future = self.submit(SolventCalculation, **inputs)
+                  future.label = SolventCalculation.default_process_label(future)
+                  future.description = (
+                  f"Solvation Calculation Node pk: {self.node.pk}"
+                  )
+                  qmmmctx = f"qmmm{n}"
+                  n += 1
+                  return ToContext(qmmmctx=future)
 
         del inputs
         return
@@ -312,9 +316,11 @@ class SolvationWorkChain(WorkChain):
 
             if "solvated_structure" not in self.ctx.md.outputs:
                 return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND
-            #if not "solute_in_solvent_ff" in self.ctx.md.outputs:
-            #    return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
-            if "snapshots" not in self.ctx.md.outputs:
+            if not "solute_in_solvent_ff" in self.ctx.md.outputs:
+                return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
+            #if "snapshots" not in self.ctx.md.outputs:
+            retrieved_folder = self.ctx.md.outputs.retrieved
+            if SolventCalculation.FOLDER_SNAPSHOTS not in retrieved_folder:
                 if self.ctx.md.inputs.dryrunmd.value:
                     pass
                 else:
