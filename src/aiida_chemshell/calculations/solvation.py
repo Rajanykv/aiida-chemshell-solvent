@@ -573,17 +573,6 @@ class SolventCalculation(ChemShellCalculation):
             script += f"solute_structure = structure\n"
 
             theory_str = "mmtheory"
-                #if qmmm_chk:
-                #    theory_str = "qmmm"
-                #    script += "from chemsh import QMMM\n"
-                #    script += "qmmm = QMMM(frag=structure, qm=qmtheory, mm=mmtheory, "
-                #    qm_region_str = str(self.inputs.qmmm_parameters.get("qm_region", []))
-                #    script += f"qm_region={qm_region_str:s})\n"
-                #elif mm_theory:
-                #    theory_str = "mmtheory"
-                #else:
-                #    theory_str = "qmtheory"
-
             script += "from chemsh import Solvation\n"
             script_md = ""
             script_md += f"job = Solvation(driver={theory_str:s}, solute=solute_structure, "
@@ -619,19 +608,32 @@ class SolventCalculation(ChemShellCalculation):
             script += script_md
             return script
 
- # Perform a QMMM
-        if self.inputs.do_qmmm:
+ # Perform a QMMM rajany todo
+
+       if self.inputs.do_qmmm:
             script += "from chemsh import QMMM\n"
+            script += f"solute_frag = Fragment(coords='{self.inputs.qmmm_parameters.solute.filename:s}'\n"
+            script += f"snapshot_frag = Fragment(coords=structure)\n"
+            script += f"natoms = frag.natoms\n"
+            script += f"indices_qm_region = range(natoms)\n"
 
-            theory_str = "qmtheory"
-            script_qm = ""
-            script_qm += f"job = QMMM(theory={theory_str:s}, "
-            grad_str = str(self.inputs.calculation_parameters.get("gradients", False))
-            script_qm += f"gradients={grad_str:s}, "
-            hess_str = str(self.inputs.calculation_parameters.get("hessian", False))
-            script_qm += f"hessian={hess_str:s})\n"
+            script += f"shell_indices = snapshot_frag.selectByShell(around = indices_qm_region,\n\t
+                    padding={self.inputs.qmmm_parameters.radius_shell}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            if self.inputs.dryrun:
+            script += f"shell = fragment.getSelected(shell_indices)\n"
+            script += f"shell.save('shell.xyz')\n"
+            script += f"shell.save('shell.pun')\n"
+
+            script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
+            script += f"qm_region={indices_qm_region}, "
+            script += f")\n"
+            script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t
+                      padding={self.inputs.qmmm_parameters.radius_active}, unit='angstrom', boundary='incl', convex=False)\n"
+
+            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters.opt_cycles},\n\t
+                                maxene={self.inputs.qmmm_parameters.energy_cycles})\n"
+
+            if self.inputs.qmmm_parameters.dryrun_qmmm:
                     script_qm += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_qm += "job.run(dryrun=False)\njob.result.save()\n"

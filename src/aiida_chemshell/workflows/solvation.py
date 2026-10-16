@@ -243,10 +243,27 @@ class SolvationWorkChain(WorkChain):
                 mm_parameters = self.inputs["mm_parameters"]
             elif "mm_parameters" not in self.inputs:
                 mm_parameters = Dict({"theory": "DL_POLY",})
+        else:
+             inputs["qmmm_parameters"] = Dict({},)
 
         inputs["mm_parameters"] = mm_parameters
         inputs["qm_parameters"] = qm_parameters
+        inputs.qmmm_parameters.update({"solute" :  self.ctx.md.inputs.structure})
 
+        if "radius_shell" not in inputs.qmmm_parameters:
+            inputs.qmmm_parameters.update({ "radius_shell" : 20})
+
+        if "radius_active" not in inputs.qmmm_parameters:
+            inputs.qmmm_parameters.update({ "radius_active" : 8})
+
+        if "dryrun_qmmm" not in inputs.qmmm_parameters:
+            inputs.qmmm_parameters.update({"dryrun_qmmm" : False}, )
+
+        if "opt_cycles" not in inputs.qmmm_parameters:
+            inputs.qmmm_parameters.update({ "opt_cycles" : 1000})
+
+        if "energy_cycles" not in inputs.qmmm_parameters:
+            inputs.qmmm_parameters.update({ "energy_cycles" : 500})
 
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
@@ -256,8 +273,8 @@ class SolvationWorkChain(WorkChain):
                         "md_parameters" : {},
                        })
 
-
         retrieved_folder = self.ctx.md.outputs.retrieved
+
         with retrieved_folder.as_path() as folder:
             snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
             n=0
