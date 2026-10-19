@@ -337,7 +337,7 @@ class SolvationWorkChain(WorkChain):
                 return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
             #if "snapshots" not in self.ctx.md.outputs:
             retrieved_folder = self.ctx.md.outputs.retrieved
-            if SolventCalculation.FOLDER_SNAPSHOTS not in retrieved_folder:
+            if SolventCalculation.FOLDER_SNAPSHOTS not in retrieved_folder.list_object_names():
                 if self.ctx.md.inputs.dryrunmd.value:
                     pass
                 else:
