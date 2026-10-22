@@ -33,7 +33,7 @@ class SolvationWorkChain(WorkChain):
             cls.result_opt,
             cls.solvate_md,
             cls.result_md,
-            #cls.setup_qmmm,
+            cls.qmmm,
             #cls.qmmm_opt,
             #cls.result,
         )
@@ -86,10 +86,10 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Geometry optimisation step from WorkChainNode pk: {self.node.pk}"
         )
-        if inputs.dryrun:
-            self.ctx.optimise = future
-        else:
-            return ToContext(optimise=future)
+        #if inputs.dryrun_opt:
+        #    self.ctx.optimise = future
+        #else:
+        return ToContext(optimise=future)
 
         del inputs
         return
@@ -110,7 +110,7 @@ class SolvationWorkChain(WorkChain):
         else:
                 inputs["qm_parameters"] = self.inputs["qm_esp_parameters"]
 
-        if not inputs.dryrun:
+        if not inputs.dryrun_opt:
             if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
 
                 if not self.ctx.optimise.is_finished_ok:
@@ -137,7 +137,7 @@ class SolvationWorkChain(WorkChain):
               "type" : "shell",
               "vdw_scale" : 1.5,
               "nlayers" : 1,
-              "tolerance" : 1e-12,
+              "tolerance" : 1e-10,
         })
 
         if "solvent_parameters" not in self.inputs:
@@ -151,13 +151,19 @@ class SolvationWorkChain(WorkChain):
         #avoid parsing output at each step
         inputs.update({ "optimisation_parameters" : {}, })
 
+        if "dryrun_charge" in inputs and inputs.dryrun_charge.value:
+            inputs.update({
+                    "do_charge_fit" :  Bool(False),
+                    "chargefitting_parameters": {},
+        })
+
         #if not self.inputs.dryrunmd.value:
         #future = self.submit(SolventCalculation, **inputs)
         #future.label = SolventCalculation.default_process_label(future)
         #future.description = (
         #    f"Charge Fitting Calculation Node pk: {self.node.pk}"
         #)
-        #if inputs.dryrun:
+        #if inputs.dryrun_charge:
         #    self.ctx.chargefit = future
         #else:
         #    return ToContext(chargefit=future)
@@ -186,16 +192,16 @@ class SolvationWorkChain(WorkChain):
 
         if "md_parameters" not in inputs:
             md_parameters = {
-                'length_npt'            : 50,         # in fs (timestep: 2 fs)
-                'length_nvt'            : 20,         # in fs (timestep: 2 fs)
+                'length_nvt'            : 10,         # in fs (timestep: 2 fs)
+                'minimisation_nvt'      : 10,
+                'length_npt'            : 10,         # in fs (timestep: 2 fs)
+                'minimisation_npt'      : 10,
+                'max_ncycles'           : 10,
                 'length_production'     : 20,        # in fs (timestep: 2 fs)
-                'max_ncycles'           : 20,
-                'minimisation_npt'      : 5,
-                'minimisation_nvt'      : 5,
-                'solutes_dist'          : 3.0,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
                 'fixed_npt'             : '',
+                #'solutes_dist'          : 3.0,
 
         }
         else:
@@ -203,12 +209,15 @@ class SolvationWorkChain(WorkChain):
 
         md_parameters.update({
                 'driver'                :'mm_theory',
-                'neutralise'            : True,
+                #'neutralise'            : True,
         })
         inputs["md_parameters"] = Dict(md_parameters)
 
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
+
+        #avoid parsing output at each step
+        inputs.update({ "do_optimise" : Bool(False), })
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -220,7 +229,7 @@ class SolvationWorkChain(WorkChain):
         del inputs
         return
 
-    def setup_qmmm(self):
+    def qmmm(self):
         """Prepare QMMM and do a (dry)run."""
 
         inputs = self.exposed_inputs(SolventCalculation)
@@ -298,6 +307,8 @@ class SolvationWorkChain(WorkChain):
     def result_opt(self):
         """Extract the results."""
 
+        if "optimise" not in self.ctx:
+            return
         if "optimised_structure" not in self.ctx.optimise.outputs:
             return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
         if "optimised_structure_file" not in self.ctx.optimise.outputs:
@@ -327,9 +338,10 @@ class SolvationWorkChain(WorkChain):
         if "do_md_equillibrate" in self.ctx.md.inputs and self.ctx.md.is_finished:
 
             #if SolventCalculation.FILE_SOLVATED_STRUCT in self.ctx.md.outputs.retrieved.list_object_names():
-            if not "fitted_charges" in self.ctx.md.outputs:
-                if not "charges_file" in self.ctx.md.outputs:
-                    return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
+            if not self.ctx.md.inputs.dryrun_charge.value:
+                if not "fitted_charges" in self.ctx.md.outputs:
+                    if not "charges_file" in self.ctx.md.outputs:
+                        return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
 
             if "solvated_structure" not in self.ctx.md.outputs:
                 return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND

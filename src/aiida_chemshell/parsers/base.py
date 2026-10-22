@@ -87,7 +87,7 @@ class ChemShellParser(Parser):
 
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:
-            if "chargefitting_parameters" not in self.node.inputs or not self.node.inputs.chargefitting_parameters.get_dict():
+            if not "do_optimise" in self.node.inputs or self.node.inputs.do_optimise.value:
                 dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
                 if self.node.inputs.optimisation_parameters.get("thermal", False):
                     self.parse_vibrational_analysis(

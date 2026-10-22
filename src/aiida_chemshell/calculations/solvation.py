@@ -83,11 +83,18 @@ class SolventCalculation(ChemShellCalculation):
              help = "Whether to do a dry run with the MD parameters(default False)"
         )
         spec.input(
-            "dryrun",
+            "dryrun_opt",
              valid_type = Bool,
              default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a dry run of all the steps in solvation(default False)"
+             required = False,
+             help = "Whether to do a dry run of optimisation step in solvation(default False)"
+        )
+        spec.input(
+            "dryrun_charge",
+             valid_type = Bool,
+             default=lambda: Bool(False),
+             required = False,
+             help = "Whether to do a dry run of charge fitting step in solvation(default False)"
         )
         spec.input(
             "solvent_box",
@@ -497,7 +504,7 @@ class SolventCalculation(ChemShellCalculation):
                         opt_str += ", " + key + "="
                         opt_str += str(self.inputs.optimisation_parameters.get(key))
             script_opt += opt_str + ")\n"
-            if self.inputs.dryrun:
+            if self.inputs.dryrun_opt:
                     script_opt += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_opt += "job.run(dryrun=False)\njob.result.save()\n"
@@ -524,7 +531,7 @@ class SolventCalculation(ChemShellCalculation):
                         fit_str += ", " + key + "="
                         fit_str += str(self.inputs.chargefitting_parameters.get(key))
             script_ch += fit_str + ")\n"
-            if self.inputs.dryrun:
+            if self.inputs.dryrun_charge:
                     script_ch += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_ch += "job.run(dryrun=False)\njob.result.save()\n"
@@ -767,10 +774,9 @@ class SolventCalculation(ChemShellCalculation):
         if "chargefitting_parameters" in self.inputs:
             if self.inputs.chargefitting_parameters.get_dict():
                 calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
-                calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT}")
-                calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
         if "md_parameters" in self.inputs:
             calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
 
         return calc_info
