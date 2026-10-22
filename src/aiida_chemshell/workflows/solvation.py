@@ -316,7 +316,7 @@ class SolvationWorkChain(WorkChain):
 
         status = self.finished_status(self.ctx.optimise)
         if status:
-            return ExitCode(988, status)
+            return f"Error Encountered. Proceeding to next.. Error: status"
 
         return
 
@@ -330,7 +330,7 @@ class SolvationWorkChain(WorkChain):
                 return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
         status = self.finished_status(self.ctx.chargefit)
         if status:
-            return ExitCode(988, status)
+            return f"Error Encountered. Proceeding to next.. Error: status"
 
         return
 
@@ -360,7 +360,7 @@ class SolvationWorkChain(WorkChain):
 
         status = self.finished_status(self.ctx.md)
         if status:
-            return ExitCode(988, status)
+            return f"Error Encountered. Proceeding to next.. Error: status"
         return
 
     def not_md_dryrun(self):

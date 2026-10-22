@@ -554,6 +554,11 @@ class SolventCalculation(ChemShellCalculation):
             if "mm_parameters" not in self.inputs:
                 return("mm_parameters not provided for md step")
             else:
+
+               script += f"import os\nenv = os.environ.copy()\n"
+               script += f"keys_to_remove = [key for key in env if key.startswith('OMPI_') or 'pmix' in key.lower() or 'pmi_' in key.lower()]\n"
+               script += f"for key in keys_to_remove:\n\tdel env[key]\n\n"
+
                # Creates a molecular mechanics Theory object
                mm_theory = ChemShellMMTheory[
                     self.inputs.mm_parameters.get("theory").upper()
@@ -575,10 +580,10 @@ class SolventCalculation(ChemShellCalculation):
                         else:
                             param_str += key + "=" + str(val) + ", "
 
-                    if mm_theory_key.lower() == "dl_poly":
-                        numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
-                        sysmpicmd = self.inputs.sysmpi.value if self.inputs.sysmpi.value else "mpirun"
-                        script += f"sysmpi= '{sysmpicmd} -np {numprocs}', "
+                    #if mm_theory_key.lower() == "dl_poly":
+                    numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
+                    sysmpicmd = self.inputs.sysmpi.value if self.inputs.sysmpi.value else "mpirun"
+                    script += f"sysmpi= '{sysmpicmd} -np {numprocs}', _sysmpi_env=env, "
 
                     script += f"{param_str:s})\n"
 
