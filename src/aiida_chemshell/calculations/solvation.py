@@ -14,6 +14,7 @@ from aiida.orm import (
     List,
     Bool,
     FolderData,
+    Str,
 )
 
 from aiida_chemshell.units import UnitsConverter
@@ -95,6 +96,13 @@ class SolventCalculation(ChemShellCalculation):
              default=lambda: Bool(False),
              required = False,
              help = "Whether to do a dry run of charge fitting step in solvation(default False)"
+        )
+        spec.input(
+            "sysmpi",
+             valid_type = Str,
+             default=lambda: Str(""),
+             required = False,
+             help = "System mpi call command to execute while doing system calls such as dl_poly from Chemshell)"
         )
         spec.input(
             "solvent_box",
@@ -569,7 +577,8 @@ class SolventCalculation(ChemShellCalculation):
 
                     if mm_theory_key.lower() == "dl_poly":
                         numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
-                        script += f"sysmpi= 'mpirun -np {numprocs}', "
+                        sysmpicmd = self.inputs.sysmpi.value if self.inputs.sysmpi.value else "mpirun"
+                        script += f"sysmpi= '{sysmpicmd} -np {numprocs}', "
 
                     script += f"{param_str:s})\n"
 

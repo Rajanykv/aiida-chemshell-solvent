@@ -183,7 +183,7 @@ class SolvationWorkChain(WorkChain):
         })
 
         if "mm_parameters" not in self.inputs:
-            mm_parameters = {"theory": "DL_POLY",
+            mm_parameters = {"theory": "DL_POLY", "temperature" : 300.0,
         }
         elif "mm_parameters" in self.inputs:
             mm_parameters = self.inputs["mm_parameters"].get_dict()
@@ -203,14 +203,14 @@ class SolvationWorkChain(WorkChain):
                 'fixed_npt'             : '',
                 #'solutes_dist'          : 3.0,
 
-        }
+           }
         else:
             md_parameters = self.inputs["md_parameters"].get_dict()
 
-        md_parameters.update({
-                'driver'                :'mm_theory',
+        #md_parameters.update({
+                #'driver'                :'mm_theory',
                 #'neutralise'            : True,
-        })
+        #})
         inputs["md_parameters"] = Dict(md_parameters)
 
         if 'metadata' in self.inputs.chemsh:
