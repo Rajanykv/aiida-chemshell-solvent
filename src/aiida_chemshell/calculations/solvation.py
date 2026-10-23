@@ -632,6 +632,27 @@ class SolventCalculation(ChemShellCalculation):
  # Perform a QMMM rajany todo
 
         if self.inputs.do_qmmm:
+            #Creates a molecular mechanics Theory object
+            mm_theory = ChemShellMMTheory[
+                self.inputs.mm_parameters.get("theory").upper()
+            ]
+            if mm_theory != ChemShellMMTheory.NONE:
+                mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
+
+                script += f"from chemsh import {mm_theory_key:s}\n"
+                script += f"mmtheory = {mm_theory_key:s}("
+                for key in self.inputs.mm_parameters.keys():
+                    if key == "theory":
+                            continue
+                    #if key == "ff":
+                    #    continue
+                    val = self.inputs.mm_parameters.get(key)
+                    if isinstance(val, str):
+                        script += key + "='" + val + "'" + ", "
+                    else:
+                        script += key + "=" + str(val) + ", "
+
+            script += ")\n"
             script += f"from chemsh import QMMM\n"
             coords = self.inputs.qmmm_parameters.get_dict()['solute']
             script += f"solute_frag = Fragment(coords='{coords:s}')\n"
