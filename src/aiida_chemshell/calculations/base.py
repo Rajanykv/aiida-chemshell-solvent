@@ -546,6 +546,8 @@ class ChemShellCalculation(CalcJob):
             "scf": float,
             "tol_energy": float,
             "dispersion": str,
+            "atom_names": str,
+            "mult": int|float,
         }
 
     @classmethod

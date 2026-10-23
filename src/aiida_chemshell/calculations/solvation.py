@@ -478,7 +478,11 @@ class SolventCalculation(ChemShellCalculation):
                 qm_theory_key = SolventCalculation.get_qm_theory_key(qm_theory)
 
                 script += f"from chemsh import {qm_theory_key:s}\n"
-                script += f"qmtheory = {qm_theory_key:s}(frag=structure"
+                script += f"qmtheory = {qm_theory_key:s}("
+
+                if not self.inputs.do_qmmm.value:
+                    script += f"frag=structure, "
+
                 param_str = ""
                 if "qm_parameters" in self.inputs:
                     for key in self.inputs.qm_parameters.keys():
@@ -486,9 +490,9 @@ class SolventCalculation(ChemShellCalculation):
                             continue
                         val = self.inputs.qm_parameters.get(key)
                         if isinstance(val, str):
-                            param_str += ", " + key + "='" + val + "'"
+                            param_str +=  key + "='" + val + "'" + ", "
                         else:
-                            param_str += ", " + key + "=" + str(val)
+                            param_str +=  key + "=" + str(val) + ", "
                 script += param_str + ")\n"
 
         script_opt = ""
@@ -629,34 +633,33 @@ class SolventCalculation(ChemShellCalculation):
 
         if self.inputs.do_qmmm:
             script += f"from chemsh import QMMM\n"
-            coords = self.inputs.qmmm_parameters['solute'].filename
-            script += f"solute_frag = Fragment(coords='{coords:s}'\n"
+            coords = self.inputs.qmmm_parameters.get_dict()['solute']
+            script += f"solute_frag = Fragment(coords='{coords:s}')\n"
             script += f"snapshot_frag = Fragment(coords=structure)\n"
             script += f"natoms = frag.natoms\n"
             script += f"indices_qm_region = range(natoms)\n"
 
             script += f"shell_indices = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
+            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
 
             script += f"shell = fragment.getSelected(shell_indices)\n"
             script += f"shell.save('shell.xyz')\n"
             script += f"shell.save('shell.pun')\n"
 
             script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
-            script += f"qm_region={indices_qm_region}, "
+            script += f"qm_region=indices_qm_region, "
             script += f")\n"
 
             script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
+            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters['opt_cycles']},\n\t maxene={self.inputs.qmmm_parameters['energy_cycles']})\n"
+            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']},\n\t maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']})\n"
 
-            if self.inputs.qmmm_parameters['dryrun_qmmm']:
-                    script_qm += "job.run(dryrun=True)\njob.result.save()\n"
+            if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
+                    script += "job.run(dryrun=True)\njob.result.save()\n"
             else:
-                    script_qm += "job.run(dryrun=False)\njob.result.save()\n"
+                    script += "job.run(dryrun=False)\njob.result.save()\n"
 
-            script += script_qm
             return script
 
         return script
