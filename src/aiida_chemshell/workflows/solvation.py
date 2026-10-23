@@ -112,20 +112,19 @@ class SolvationWorkChain(WorkChain):
             qm_parameters.update({ "atom_names" : "symbol"})
 
         inputs.qm_parameters = Dict(dict=qm_parameters)
-        if not inputs.dryrun_opt:
-            if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
+        if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
 
-                if not self.ctx.optimise.is_finished_ok:
-                    return ( "Optimisation has not finished successfully")
+            if not self.ctx.optimise.is_finished_ok:
+                return ( "Optimisation has not finished successfully")
 
-                structure = self.ctx.optimise.outputs.optimised_structure_file
+            structure = self.ctx.optimise.outputs.optimised_structure_file
 
-                inputs.update({
-                    "structure"       : structure,
-                })
+            inputs.update({
+                "structure"       : structure,
+            })
 
-            else:
-                return("Optimisation has not finished successully")
+        else:
+            return("Optimisation has not finished yet")
 
         inputs.update({
                     "do_charge_fit" :  Bool(True),
@@ -304,7 +303,7 @@ class SolvationWorkChain(WorkChain):
             snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
             n=0
             for file_path in snapshots_dir.iterdir():
-              if file_path.is_file():
+              if file_path.is_file() and file_path.suffix == ".pun":
                   inputs.update({ "structure" : SinglefileData(file=file_path) })
                   future = self.submit(SolventCalculation, **inputs)
                   future.label = SolventCalculation.default_process_label(future)

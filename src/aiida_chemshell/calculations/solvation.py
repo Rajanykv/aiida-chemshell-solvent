@@ -635,14 +635,14 @@ class SolventCalculation(ChemShellCalculation):
             script += f"from chemsh import QMMM\n"
             coords = self.inputs.qmmm_parameters.get_dict()['solute']
             script += f"solute_frag = Fragment(coords='{coords:s}')\n"
-            script += f"snapshot_frag = Fragment(coords=structure)\n"
-            script += f"natoms = frag.natoms\n"
+            script += f"snapshot_frag = structure\n"
+            script += f"natoms = solute_frag.natoms\n"
             script += f"indices_qm_region = range(natoms)\n"
 
             script += f"shell_indices = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            script += f"shell = fragment.getSelected(shell_indices)\n"
+            script += f"shell = snapshot_frag.getSelected(shell_indices)\n"
             script += f"shell.save('shell.xyz')\n"
             script += f"shell.save('shell.pun')\n"
 
