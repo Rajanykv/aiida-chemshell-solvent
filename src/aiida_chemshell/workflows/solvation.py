@@ -110,6 +110,9 @@ class SolvationWorkChain(WorkChain):
         else:
                 inputs["qm_parameters"] = self.inputs["qm_esp_parameters"]
 
+        if "atom_names" not in inputs.qm_parameters:
+            inputs["qm_parameters"].get_dict().update({ "atom_names" : "symbol"})
+
         if not inputs.dryrun_opt:
             if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
 
@@ -240,39 +243,49 @@ class SolvationWorkChain(WorkChain):
 
         if 'qmmm_parameters' in inputs:
             if 'qm_parameters' in inputs.qmmm_parameters.get_dict():
-                qm_parameters = Dict(inputs.qmmm_parameters.get_dict().qm_parameters)
+                qm_parameters = Dict(inputs.qmmm_parameters.get_dict()["qm_parameters"])
             elif 'qm_parameters' in inputs:
                 qm_parameters = inputs.qm_parameters,
             else:
                 qm_parameters = self.ctx.optimise.inputs.qm_parameters
 
             if 'mm_parameters' in inputs.qmmm_parameters.get_dict():
-                mm_parameters = Dict(inputs.qmmm_parameters.get_dict().mm_parameters)
+                mm_parameters = Dict(inputs.qmmm_parameters.get_dict()["mm_parameters"])
             elif "mm_parameters" in self.inputs:
                 mm_parameters = self.inputs["mm_parameters"]
             elif "mm_parameters" not in self.inputs:
-                mm_parameters = Dict({"theory": "DL_POLY",})
+                mm_parameters = Dict({"theory": "DL_POLY", "temperature" : 300.0})
         else:
              inputs["qmmm_parameters"] = Dict({},)
 
         inputs["mm_parameters"] = mm_parameters
         inputs["qm_parameters"] = qm_parameters
-        inputs.qmmm_parameters.update({"solute" :  self.ctx.md.inputs.structure})
+
+        if "atom_names" not in inputs.qm_parameters:
+            inputs["qm_parameters"].get_dict().update({ "atom_names" : "symbol"})
+
+        #if "charge" not in inputs.qm_parameters:
+        #    inputs["qm_parameters"].get_dict().update({ "charge" : 0})
+
+        if "mult" not in inputs.qm_parameters:
+            inputs["qm_parameters"].get_dict().update({ "mult" : 1})
+
+        inputs["qmmm_parameters"].get_dict().update({"solute" :  self.ctx.md.inputs.structure})
 
         if "radius_shell" not in inputs.qmmm_parameters:
-            inputs.qmmm_parameters.update({ "radius_shell" : 20})
+            inputs["qmmm_parameters"].get_dict().update({ "radius_shell" : 20})
 
         if "radius_active" not in inputs.qmmm_parameters:
-            inputs.qmmm_parameters.update({ "radius_active" : 8})
+            inputs["qmmm_parameters"].get_dict().update({ "radius_active" : 8})
 
         if "dryrun_qmmm" not in inputs.qmmm_parameters:
-            inputs.qmmm_parameters.update({"dryrun_qmmm" : False}, )
+            inputs["qmmm_parameters"].get_dict().update({"dryrun_qmmm" : False}, )
 
         if "opt_cycles" not in inputs.qmmm_parameters:
-            inputs.qmmm_parameters.update({ "opt_cycles" : 1000})
+            inputs["qmmm_parameters"].get_dict().update({ "opt_cycles" : 1000})
 
         if "energy_cycles" not in inputs.qmmm_parameters:
-            inputs.qmmm_parameters.update({ "energy_cycles" : 500})
+            inputs["qmmm_parameters"].get_dict().update({ "energy_cycles" : 500})
 
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]

@@ -498,10 +498,6 @@ class SolventCalculation(ChemShellCalculation):
 
             script_opt += "from chemsh import Opt\n"
             theory_str = "qmtheory"
-            #rajany todo
-            #if qmmm or mm
-            #theory_str = "mmtheory"
-            #theory_str = "qmmmtheory"
             opt_str = f"job=Opt(theory={theory_str}"
             if "optimisation_parameters" in self.inputs:
                 for key in self.inputs.optimisation_parameters.keys():
@@ -632,14 +628,15 @@ class SolventCalculation(ChemShellCalculation):
  # Perform a QMMM rajany todo
 
         if self.inputs.do_qmmm:
-            script += "from chemsh import QMMM\n"
-            script += f"solute_frag = Fragment(coords='{self.inputs.qmmm_parameters.solute.filename:s}'\n"
+            script += f"from chemsh import QMMM\n"
+            coords = self.inputs.qmmm_parameters['solute'].filename
+            script += f"solute_frag = Fragment(coords='{coords:s}'\n"
             script += f"snapshot_frag = Fragment(coords=structure)\n"
             script += f"natoms = frag.natoms\n"
             script += f"indices_qm_region = range(natoms)\n"
 
             script += f"shell_indices = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters.radius_shell}, unit='angstrom', boundary='incl', convex=False)\n"
+            script += f"padding={self.inputs.qmmm_parameters['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
 
             script += f"shell = fragment.getSelected(shell_indices)\n"
             script += f"shell.save('shell.xyz')\n"
@@ -648,12 +645,13 @@ class SolventCalculation(ChemShellCalculation):
             script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
             script += f"qm_region={indices_qm_region}, "
             script += f")\n"
+
             script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters.radius_active}, unit='angstrom', boundary='incl', convex=False)\n"
+            script += f"padding={self.inputs.qmmm_parameters['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters.opt_cycles},\n\t maxene={self.inputs.qmmm_parameters.energy_cycles})\n"
+            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters['opt_cycles']},\n\t maxene={self.inputs.qmmm_parameters['energy_cycles']})\n"
 
-            if self.inputs.qmmm_parameters.dryrun_qmmm:
+            if self.inputs.qmmm_parameters['dryrun_qmmm']:
                     script_qm += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_qm += "job.run(dryrun=False)\njob.result.save()\n"
