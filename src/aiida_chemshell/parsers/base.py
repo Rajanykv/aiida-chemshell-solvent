@@ -86,8 +86,11 @@ class ChemShellParser(Parser):
                         self.out("gradients", grad_data)
 
         # If the calculation was a geometry optimisation, store the optimised structure
-        if "optimisation_parameters" in self.node.inputs:
-            if not "do_optimise" in self.node.inputs or self.node.inputs.do_optimise.value:
+        if "optimisation_parameters" in self.node.inputs or "do_qmmm_opt" in self.node.inputs:
+            #Ist condition to allow for the base level calculation and 2nd for solvation.
+            #added solvation qmmm separately.
+            if (not "do_optimise" in self.node.inputs or self.node.inputs.do_optimise.value or
+                self.node.inputs.do_qmmm_opt.value):
                 dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
                 if self.node.inputs.optimisation_parameters.get("thermal", False):
                     self.parse_vibrational_analysis(
@@ -173,6 +176,7 @@ class ChemShellParser(Parser):
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 
+            #todo clean this up. no longer needed.
             filename = SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
             filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
             if filepath.exists():
@@ -193,7 +197,7 @@ class ChemShellParser(Parser):
 
             filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
             filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-            if filepath.exists():
+            if filepath.exists() and not self.node.inputs.do_qmmm.value:
                 with open(filepath, "rb") as f:
                     self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
                               label="Combined Force Field of Solute+Solvent", 

@@ -35,6 +35,7 @@ class SolventCalculation(ChemShellCalculation):
     FILE_SOLVATED_STRUCT = "_solvated.xyz"
     FILE_SOLUTE_SOLVENT_FF = "_solvated.ff"
     FILE_SOLUTE_SOLVENT_STRUCT = "solute_in_solvent.pqr"
+    FILE_FF_SHELL = "ff_shell_around_solute.ff"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -63,6 +64,13 @@ class SolventCalculation(ChemShellCalculation):
              help = "Whether to do optimisation on the initial structure. (default False)"
         )
         spec.input(
+            "do_qmmm_opt",
+             valid_type = Bool,
+             default=lambda: Bool(False),
+             required = False,
+             help = "Whether to do a QMMM optimisation. (default False)"
+        )
+        spec.input(
             "do_charge_fit",
              valid_type = Bool,
              default=lambda: Bool(False),
@@ -87,14 +95,14 @@ class SolventCalculation(ChemShellCalculation):
             "dryrun_opt",
              valid_type = Bool,
              default=lambda: Bool(False),
-             required = False,
+             required = True,
              help = "Whether to do a dry run of optimisation step in solvation(default False)"
         )
         spec.input(
             "dryrun_charge",
              valid_type = Bool,
              default=lambda: Bool(False),
-             required = False,
+             required = True,
              help = "Whether to do a dry run of charge fitting step in solvation(default False)"
         )
         spec.input(
@@ -631,7 +639,7 @@ class SolventCalculation(ChemShellCalculation):
 
  # Perform a QMMM rajany todo
 
-        if self.inputs.do_qmmm:
+        if self.inputs.do_qmmm.value:
             #coords = self.inputs.qmmm_parameters.get_dict()['solute']
             coords = self.inputs.structure2.filename
             script += f"solute_frag = Fragment(coords='{coords:s}')\n"
@@ -682,7 +690,7 @@ class SolventCalculation(ChemShellCalculation):
             script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            job_str = "Opt" if self.inputs.qmmm_parameters.get_dict()['qmmm_opt'] else "SP"
+            job_str = "Opt" if self.inputs.do_qmmm_opt.value else "SP"
             script += f"job = {job_str:s}(theory=qmmm, active=indices_active_region"
             if job_str == "Opt":
                 script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
@@ -826,5 +834,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
+        if self.inputs.do_qmmm.value:
+            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
 
         return calc_info
