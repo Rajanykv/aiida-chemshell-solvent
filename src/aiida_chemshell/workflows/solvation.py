@@ -34,7 +34,6 @@ class SolvationWorkChain(WorkChain):
             cls.solvate_md,
             cls.result_md,
             cls.qmmm,
-            #cls.qmmm_opt,
             #cls.result,
         )
         return
@@ -49,8 +48,10 @@ class SolvationWorkChain(WorkChain):
 
     def validate_inputs_2(self):
         """Validate the inputs provided to the WorkChain."""
-        has_box = "solvent_box" in self.inputs
-        if not has_box:
+        #has_box = "solvent_box" in self.inputs
+        #has_file = "structure2" in self.inputs
+        has_file = "structure" in self.ctx.md.inputs.structure
+        if not has_file:
             return SolventCalculation.exit_codes.ERROR_NO_INPUTS
         return None
 
@@ -108,8 +109,8 @@ class SolvationWorkChain(WorkChain):
         else:
                 qm_parameters = self.inputs["qm_esp_parameters"]
 
-        if "atom_names" not in qm_parameters:
-            qm_parameters.update({ "atom_names" : "symbol"})
+        #if "atom_names" not in qm_parameters:
+        #    qm_parameters.update({ "atom_names" : "symbol"})
 
         inputs.qm_parameters = Dict(dict=qm_parameters)
         if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
@@ -258,8 +259,8 @@ class SolvationWorkChain(WorkChain):
         elif "mm_parameters" not in self.inputs:
             mm_parameters = {"theory": "DL_POLY", "temperature" : 300.0}
 
-        if "atom_names" not in qm_parameters:
-            qm_parameters.update({ "atom_names" : "symbol"})
+        #if "atom_names" not in qm_parameters:
+        #    qm_parameters.update({ "atom_names" : "symbol"})
 
         if "mult" not in qm_parameters:
             qm_parameters.update({ "mult" : 1})
@@ -270,7 +271,8 @@ class SolvationWorkChain(WorkChain):
         #if "charge" not in inputs.qm_parameters:
         #    inputs["qm_parameters"].get_dict().update({ "charge" : 0})
 
-        qmmm_parameters.update({"solute" :  self.ctx.md.inputs.structure.filename})
+        inputs.update({"structure2" : self.ctx.md.inputs.structure})
+        inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
 
         if "radius_shell" not in qmmm_parameters:
             qmmm_parameters.update({ "radius_shell" : 20})
@@ -286,6 +288,9 @@ class SolvationWorkChain(WorkChain):
 
         if "energy_cycles" not in qmmm_parameters:
             qmmm_parameters.update({ "energy_cycles" : 500})
+
+        if "qmmm_opt" not in qmmm_parameters:
+            qmmm_parameters.update({ "qmmm_opt" : False})
 
         inputs["qmmm_parameters"] = Dict(dict=qmmm_parameters)
 

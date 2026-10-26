@@ -632,6 +632,24 @@ class SolventCalculation(ChemShellCalculation):
  # Perform a QMMM rajany todo
 
         if self.inputs.do_qmmm:
+            #coords = self.inputs.qmmm_parameters.get_dict()['solute']
+            coords = self.inputs.structure2.filename
+            script += f"solute_frag = Fragment(coords='{coords:s}')\n"
+            script += f"snapshot_frag = structure\n"
+            script += f"natoms = solute_frag.natoms\n"
+            script += f"indices_qm_region = range(natoms)\n"
+
+            script += f"indices_shell = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
+            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
+
+            script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
+            script += f"shell.save('shell.xyz')\n"
+            script += f"shell.save('shell.pun')\n"
+
+            script += f"from chemsh import Forcefield\n"
+            script += f"ff = Forcefield(input='{self.inputs.force_field_file.filename:s}')\n"
+            script += f"ff_cut = ff.getSelected(indices_shell)\n"
+            script += f"ff_cut.write('ff_shell_around_solute.ff')\n"
             #Creates a molecular mechanics Theory object
             mm_theory = ChemShellMMTheory[
                 self.inputs.mm_parameters.get("theory").upper()
@@ -641,11 +659,14 @@ class SolventCalculation(ChemShellCalculation):
 
                 script += f"from chemsh import {mm_theory_key:s}\n"
                 script += f"mmtheory = {mm_theory_key:s}("
+                script += f"ff = 'ff_shell_around_solute.ff', "
                 for key in self.inputs.mm_parameters.keys():
                     if key == "theory":
                             continue
-                    #if key == "ff":
-                    #    continue
+                    if key == "ff":
+                        continue
+                    if key == "temperature":
+                        continue
                     val = self.inputs.mm_parameters.get(key)
                     if isinstance(val, str):
                         script += key + "='" + val + "'" + ", "
@@ -654,19 +675,6 @@ class SolventCalculation(ChemShellCalculation):
 
             script += ")\n"
             script += f"from chemsh import QMMM\n"
-            coords = self.inputs.qmmm_parameters.get_dict()['solute']
-            script += f"solute_frag = Fragment(coords='{coords:s}')\n"
-            script += f"snapshot_frag = structure\n"
-            script += f"natoms = solute_frag.natoms\n"
-            script += f"indices_qm_region = range(natoms)\n"
-
-            script += f"shell_indices = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
-
-            script += f"shell = snapshot_frag.getSelected(shell_indices)\n"
-            script += f"shell.save('shell.xyz')\n"
-            script += f"shell.save('shell.pun')\n"
-
             script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
             script += f"qm_region=indices_qm_region, "
             script += f")\n"
@@ -674,7 +682,11 @@ class SolventCalculation(ChemShellCalculation):
             script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
 
-            script += f"job = Opt(theory=qmmm, active=indices_active_region, maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']},\n\t maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']})\n"
+            job_str = "Opt" if self.inputs.qmmm_parameters.get_dict()['qmmm_opt'] else "SP"
+            script += f"job = {job_str:s}(theory=qmmm, active=indices_active_region"
+            if job_str == "Opt":
+                script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
+            script += f")\n"
 
             if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
                     script += "job.run(dryrun=True)\njob.result.save()\n"
