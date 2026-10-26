@@ -665,8 +665,8 @@ class SolventCalculation(ChemShellCalculation):
                             continue
                     if key == "ff":
                         continue
-                    if key == "temperature":
-                        continue
+                    #if key == "temperature":
+                    #    continue
                     val = self.inputs.mm_parameters.get(key)
                     if isinstance(val, str):
                         script += key + "='" + val + "'" + ", "
