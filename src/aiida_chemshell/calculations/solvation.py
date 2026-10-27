@@ -497,7 +497,8 @@ class SolventCalculation(ChemShellCalculation):
         else:  # SinglefileData
             origfile = Path(self.inputs.structure.filename)
             ext = origfile.suffix
-            new_filename = f"new_input_file{ext}"
+            origfilename = origfile.name
+            new_filename = f"current_input_{origfilename}"
             script += (
                 f"structure = Fragment(coords='{new_filename:s}')\n"
             )
@@ -669,8 +670,9 @@ class SolventCalculation(ChemShellCalculation):
             #coords = self.inputs.qmmm_parameters.get_dict()['solute']
             origfile = Path(self.inputs.structure2.filename)
             ext = origfile.suffix
-            coords = f"new_input_file2{ext}"
-            script += f"solute_frag = Fragment(coords='{coords:s}')\n"
+            origfilename = origfile.name
+            new_filename = f"current_input2_{origfilename}"
+            script += f"solute_frag = Fragment(coords='{new_filename:s}')\n"
             script += f"snapshot_frag = structure\n"
             script += f"natoms = solute_frag.natoms\n"
             script += f"indices_qm_region = range(natoms)\n"
@@ -799,7 +801,9 @@ class SolventCalculation(ChemShellCalculation):
         else:
             origfile = Path(self.inputs.structure.filename)
             ext = origfile.suffix
-            new_filename = f"new_input_file{ext}"
+            origfilename = origfile.name
+            #new_filename = f"current_input_file{ext}"
+            new_filename = f"current_input_{origfilename}"
             calc_info.local_copy_list.append(
                 (
                     self.inputs.structure.uuid,
@@ -816,7 +820,9 @@ class SolventCalculation(ChemShellCalculation):
             else:
                 origfile = Path(self.inputs.structure2.filename)
                 ext = origfile.suffix
-                new_filename = f"new_input_file2{ext}"
+                origfilename = origfile.name
+                new_filename = f"current_input2_{origfilename}"
+                #new_filename = f"new_input_file2{ext}"
                 calc_info.local_copy_list.append(
                     (
                         self.inputs.structure2.uuid,
