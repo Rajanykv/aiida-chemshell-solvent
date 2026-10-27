@@ -324,7 +324,7 @@ class SolvationWorkChain(WorkChain):
                   qmmmctx = f"qmmm{n}"
                   n += 1
                   #return ToContext(**{qmmmctx : future})
-                  ToContext(qmmms=append_(future))
+                  return ToContext(qmmms=append_(future))
 
         del inputs
         return
@@ -390,7 +390,7 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result(self):
-        for i, qmmmctx in enumerate(self.ctx.qmmms):
+        for i, qmmmctx in enumerate(self.ctx.qmmms.get('qmmms', [])):
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
                 if "qmmm_shell_structure" not in qmmmctx.outputs:
@@ -413,6 +413,7 @@ class SolvationWorkChain(WorkChain):
     def not_md_dryrun(self):
         return not self.inputs.dryrunmd.value
 
+    #rajany diagnostics
     def finished_status(self, calc_node):
         if calc_node.is_killed:
             return(f"Step {calc_node.process_label} was manually killed by user or daemon.")
