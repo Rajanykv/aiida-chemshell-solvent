@@ -265,6 +265,20 @@ class SolventCalculation(ChemShellCalculation):
                 "Combined forcefield for solute in solvent not found.Combined force field generation did not finish successfully."
            ),
         )
+        spec.exit_code(
+            314,
+            "ERROR_QMMM_NOT_FINISHED"
+            message=(
+                "QMMM run has not completed."
+            ),
+        )
+        spec.exit_code(
+            315,
+            "ERROR_QMMM_SHELL_PREPARATION_FAILED"
+            message=(
+                "Chemshell Failed to cut Shell for QMMM run."
+            ),
+        )
 
         return
 
@@ -696,6 +710,8 @@ class SolventCalculation(ChemShellCalculation):
                     else:
                         script += key + "=" + str(val) + ", "
 
+            if "atom_names" not in self.inputs.mm_parameters.keys():
+                script += f"atom_names = 'types', "
             script += ")\n"
             script += f"from chemsh import QMMM\n"
             script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
@@ -857,7 +873,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
         if self.inputs.do_qmmm.value:
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
-            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_QMMM_SHELL}")
-            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL}")
+            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
 
         return calc_info

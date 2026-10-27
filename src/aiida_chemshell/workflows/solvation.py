@@ -34,7 +34,7 @@ class SolvationWorkChain(WorkChain):
             cls.solvate_md,
             cls.result_md,
             cls.qmmm,
-            #cls.result,
+            cls.result,
         )
         return
 
@@ -259,6 +259,8 @@ class SolvationWorkChain(WorkChain):
         elif "mm_parameters" not in self.inputs:
             mm_parameters = {"theory": "DL_POLY", "temperature" : 300.0}
 
+        if "atom_names" not in mm_parameters:
+            mm_parameters.update({ "atom_names" : "types"})
         #if "atom_names" not in qm_parameters:
         #    qm_parameters.update({ "atom_names" : "symbol"})
 
@@ -383,6 +385,26 @@ class SolvationWorkChain(WorkChain):
                 return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
 
         status = self.finished_status(self.ctx.md)
+        if status:
+            return f"Error Encountered. Proceeding to next.. Error: status"
+        return
+
+    def result(self):
+        if "do_qmmm" in self.ctx.qmmmctx.inputs and self.ctx.qmmmctx.is_finished:
+
+            if "qmmm_shell_structure" not in self.ctx.qmmmctx.outputs:
+                return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
+
+            if "optimised_structure" not in self.ctx.qmmmctx.outputs:
+                if not self.ctx.qmmmctx.inputs.do_qmmm_opt.value:
+                    pass
+                else:
+                    return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
+
+        else:
+                return SolventCalculation.exit_codes.ERROR_QMMM_NOT_FINISHED
+
+        status = self.finished_status(self.ctx.qmmmctx)
         if status:
             return f"Error Encountered. Proceeding to next.. Error: status"
         return
