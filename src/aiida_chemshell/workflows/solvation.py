@@ -215,11 +215,11 @@ class SolvationWorkChain(WorkChain):
         #})
         inputs["md_parameters"] = Dict(md_parameters)
 
-        #avoid parsing output at each step
-        inputs.update({ "do_optimise" : Bool(False), })
-
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
+
+        #avoid parsing output at each step
+        inputs.update({ "do_optimise" : Bool(False), })
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -291,6 +291,9 @@ class SolvationWorkChain(WorkChain):
 
         if "qmmm_opt" not in qmmm_parameters:
             qmmm_parameters.update({ "qmmm_opt" : False})
+
+        if "optimisation_parameters" not in self.inputs:
+            inputs["optimisation_parameters"] = Dict({})
 
         inputs["do_qmmm_opt"] = Bool(qmmm_parameters["qmmm_opt"])
         inputs["qmmm_parameters"] = Dict(dict=qmmm_parameters)

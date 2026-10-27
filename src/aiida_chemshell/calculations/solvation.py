@@ -3,6 +3,7 @@
 from aiida.common import CalcInfo, CodeInfo
 from aiida.common.folders import Folder
 from aiida.engine import CalcJob, CalcJobProcessSpec, PortNamespace
+from pathlib import Path
 from aiida.orm import (
     ArrayData,
     Dict,
@@ -36,6 +37,8 @@ class SolventCalculation(ChemShellCalculation):
     FILE_SOLUTE_SOLVENT_FF = "_solvated.ff"
     FILE_SOLUTE_SOLVENT_STRUCT = "solute_in_solvent.pqr"
     FILE_FF_SHELL = "ff_shell_around_solute.ff"
+    FILE_QMMM_SHELL = "qmmm_shell.xyz"
+    FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -205,7 +208,14 @@ class SolventCalculation(ChemShellCalculation):
                 "Optimised structure file to pass to next step."
             ),
         )
-
+        spec.output(
+            "qmmm_shell_structure",
+            valid_type=StructureData,
+            required=False,
+            help=(
+                "Shell cut form solvated box for QMMM calculations."
+            ),
+        )
         spec.exit_code(
             307,
             "ERROR_NO_INPUTS",
@@ -472,8 +482,11 @@ class SolventCalculation(ChemShellCalculation):
             script += "structure = Fragment(coords="
             script += f"'{SolventCalculation.FILE_TMP_STRUCTURE:s}')\n"
         else:  # SinglefileData
+            origfile = Path(self.inputs.structure.filename)
+            ext = origfile.suffix
+            new_filename = f"new_input_file{ext}"
             script += (
-                f"structure = Fragment(coords='{self.inputs.structure.filename:s}')\n"
+                f"structure = Fragment(coords='{new_filename:s}')\n"
             )
 
         if "qm_parameters" in self.inputs:
@@ -641,7 +654,9 @@ class SolventCalculation(ChemShellCalculation):
 
         if self.inputs.do_qmmm.value:
             #coords = self.inputs.qmmm_parameters.get_dict()['solute']
-            coords = self.inputs.structure2.filename
+            origfile = Path(self.inputs.structure2.filename)
+            ext = origfile.suffix
+            coords = f"new_input_file2{ext}"
             script += f"solute_frag = Fragment(coords='{coords:s}')\n"
             script += f"snapshot_frag = structure\n"
             script += f"natoms = solute_frag.natoms\n"
@@ -651,8 +666,8 @@ class SolventCalculation(ChemShellCalculation):
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
 
             script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
-            script += f"shell.save('shell.xyz')\n"
-            script += f"shell.save('shell.pun')\n"
+            script += f"shell.save('qmmm_shell.xyz')\n"
+            script += f"shell.save('qmmm_shell.pun')\n"
 
             script += f"from chemsh import Forcefield\n"
             script += f"ff = Forcefield(input='{self.inputs.force_field_file.filename:s}')\n"
@@ -767,11 +782,14 @@ class SolventCalculation(ChemShellCalculation):
                 structure = self.inputs.structure.get_step_structure(index=index)
                 f.write(structure._prepare_xyz()[0])
         else:
+            origfile = Path(self.inputs.structure.filename)
+            ext = origfile.suffix
+            new_filename = f"new_input_file{ext}"
             calc_info.local_copy_list.append(
                 (
                     self.inputs.structure.uuid,
                     self.inputs.structure.filename,
-                    self.inputs.structure.filename,
+                    new_filename,
                 ),
             )
 
@@ -781,11 +799,14 @@ class SolventCalculation(ChemShellCalculation):
                 with folder.open(SolventCalculation.FILE_TMP_STRUCTURE, "wb") as f:
                     f.write(self.inputs.structure2._prepare_xyz()[0])
             else:
+                origfile = Path(self.inputs.structure2.filename)
+                ext = origfile.suffix
+                new_filename = f"new_input_file2{ext}"
                 calc_info.local_copy_list.append(
                     (
                         self.inputs.structure2.uuid,
                         self.inputs.structure2.filename,
-                        self.inputs.structure2.filename,
+                        new_filename,
                     ),
                 )
 
@@ -836,5 +857,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
         if self.inputs.do_qmmm.value:
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
+            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_QMMM_SHELL}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
 
         return calc_info

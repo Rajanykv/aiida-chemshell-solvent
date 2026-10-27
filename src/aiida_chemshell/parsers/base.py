@@ -86,11 +86,11 @@ class ChemShellParser(Parser):
                         self.out("gradients", grad_data)
 
         # If the calculation was a geometry optimisation, store the optimised structure
-        if "optimisation_parameters" in self.node.inputs or "do_qmmm_opt" in self.node.inputs:
+        if "optimisation_parameters" in self.node.inputs:
             #Ist condition to allow for the base level calculation and 2nd for solvation.
             #added solvation qmmm separately.
             if (not "do_optimise" in self.node.inputs or self.node.inputs.do_optimise.value or
-                self.node.inputs.do_qmmm_opt.value):
+               ( "do_qmmm_opt" in self.node.inputs and self.node.inputs.do_qmmm_opt.value ) ):
                 dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
                 if self.node.inputs.optimisation_parameters.get("thermal", False):
                     self.parse_vibrational_analysis(
