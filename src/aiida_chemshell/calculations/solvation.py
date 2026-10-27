@@ -157,7 +157,7 @@ class SolventCalculation(ChemShellCalculation):
             "num_machines": 1,
             "num_mpiprocs_per_machine": 4,
         }
-        spec.inputs["metadata"]["options"]["parser_name"].default = "chemshell"
+        spec.inputs["metadata"]["options"]["parser_name"].default = "chemshell.solvation"
 
         #rajany todo examine later correct specs
         spec.output(
@@ -294,7 +294,6 @@ class SolventCalculation(ChemShellCalculation):
                     )
 
         return None
-
 
     #rajany todo-retain only necessary
     @classmethod

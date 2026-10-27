@@ -30,7 +30,7 @@ Source = "https://github.com/stfc/aiida-chemshell"
 
 [project.entry-points."aiida.parsers"]
 "chemshell" = "aiida_chemshell.parsers.base:ChemShellParser"
-
+"chemshell.solvation" = "aiida_chemshell.parsers.solvation:ChemShellParser"
 
 [project.entry-points."aiida.workflows"]
 "chemshell.opt" = "aiida_chemshell.workflows.optimisation:GeometryOptimisationWorkChain"
