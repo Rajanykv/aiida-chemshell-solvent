@@ -10,6 +10,7 @@ from aiida_chemshell.calculations.solvation import SolventCalculation
 from aiida_chemshell.calculations.base import ChemShellCalculation
 from aiida_chemshell.workflows.isolated_atoms import IsolatedAtomicEnergiesWorkChain
 from aiida.engine import ExitCode
+from aiida.engine import append_
 
 class SolvationWorkChain(WorkChain):
     """Steps in the Solvation Work Flow."""
@@ -24,7 +25,6 @@ class SolvationWorkChain(WorkChain):
         spec.expose_inputs(SolventCalculation,include=['metadata'], namespace="chemsh")
 
         ## Workflow ##
-        #rajany todo add full/correct workflow
         #if_(cls.not_md_dryrun)(
         #   )
         spec.outline(
@@ -323,11 +323,11 @@ class SolvationWorkChain(WorkChain):
                   )
                   qmmmctx = f"qmmm{n}"
                   n += 1
-                  return ToContext(qmmmctx=future)
+                  #return ToContext(**{qmmmctx : future})
+                  ToContext(qmmms=append_(future))
 
         del inputs
         return
-
 
 #template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
@@ -390,23 +390,24 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result(self):
-        if "do_qmmm" in self.ctx.qmmmctx.inputs and self.ctx.qmmmctx.is_finished:
+        for i, qmmmctx in enumerate(self.ctx.qmmms):
+            if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
-            if "qmmm_shell_structure" not in self.ctx.qmmmctx.outputs:
-                return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
+                if "qmmm_shell_structure" not in qmmmctx.outputs:
+                    return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
 
-            if "optimised_structure" not in self.ctx.qmmmctx.outputs:
-                if not self.ctx.qmmmctx.inputs.do_qmmm_opt.value:
-                    pass
-                else:
-                    return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
+                if "optimised_structure" not in qmmmctx.outputs:
+                    if not self.ctx.qmmmctx.inputs.do_qmmm_opt.value:
+                        pass
+                    else:
+                        return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
 
-        else:
-                return SolventCalculation.exit_codes.ERROR_QMMM_NOT_FINISHED
+            else:
+                    return SolventCalculation.exit_codes.ERROR_QMMM_NOT_FINISHED
 
-        status = self.finished_status(self.ctx.qmmmctx)
-        if status:
-            return f"Error Encountered. Proceeding to next.. Error: status"
+            status = self.finished_status(qmmmctx)
+            if status:
+                return f"Error Encountered. Proceeding to next.. Error: status"
         return
 
     def not_md_dryrun(self):
