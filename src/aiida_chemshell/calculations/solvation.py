@@ -267,14 +267,14 @@ class SolventCalculation(ChemShellCalculation):
         )
         spec.exit_code(
             314,
-            "ERROR_QMMM_NOT_FINISHED"
+            "ERROR_QMMM_NOT_FINISHED",
             message=(
                 "QMMM run has not completed."
             ),
         )
         spec.exit_code(
             315,
-            "ERROR_QMMM_SHELL_PREPARATION_FAILED"
+            "ERROR_QMMM_SHELL_PREPARATION_FAILED",
             message=(
                 "Chemshell Failed to cut Shell for QMMM run."
             ),
