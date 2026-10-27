@@ -6,11 +6,10 @@ from pathlib import Path
 import numpy
 from aiida.common import ModificationNotAllowed
 from aiida.engine import ExitCode
-from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List, StructureData
+from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List
 from aiida.parsers.parser import Parser
 
 from aiida_chemshell.calculations.base import ChemShellCalculation
-from aiida_chemshell.calculations.solvation import SolventCalculation
 from aiida_chemshell.utils import chemsh_cjson_to_structure_data
 
 
@@ -25,34 +24,29 @@ class ChemShellParser(Parser):
             return self.exit_codes.ERROR_STDOUT_NOT_FOUND
         results_path = retrieved_tmp_folder / ChemShellCalculation.FILE_RESULTS
         if not (results_path).exists():
-            #md does not have results object
-            if "md_parameters" in self.node.inputs and self.node.inputs.md_parameters.get_dict():
-                pass
-            else:
-                return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
+            return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
 
-        if "md_parameters" not in self.node.inputs or not self.node.inputs.md_parameters.get_dict():
         # Read the 'json' formatted results file
-            with open(results_path, "rb") as f:
-                results = json.loads(f.read())
+        with open(results_path, "rb") as f:
+            results = json.loads(f.read())
 
-            # Extract the final energy
-            try:
-                self.out(
-                    "energy",
-                    Float(
-                        results["energy"][0],
-                        label="Final SCF Energy",
-                        description=(
-                            "The total (final SCF) energy of the system calculated by "
-                            "ChemShell."
-                        ),
+        # Extract the final energy
+        try:
+            self.out(
+                "energy",
+                Float(
+                    results["energy"][0],
+                    label="Final SCF Energy",
+                    description=(
+                        "The total (final SCF) energy of the system calculated by "
+                        "ChemShell."
                     ),
-                )
-            except (KeyError, ValueError):
-                return self.exit_codes.ERROR_MISSING_FINAL_ENERGY
-            except ModificationNotAllowed as e:
-                raise e
+                ),
+            )
+        except (KeyError, ValueError):
+            return self.exit_codes.ERROR_MISSING_FINAL_ENERGY
+        except ModificationNotAllowed as e:
+            raise e
 
         # Extract gradients/hessian if they are requested
         if "calculation_parameters" in self.node.inputs:
@@ -87,77 +81,62 @@ class ChemShellParser(Parser):
 
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:
-            #Ist condition to allow for the base level calculation and 2nd for solvation.
-            #added solvation qmmm separately.
-            if (not "do_optimise" in self.node.inputs or self.node.inputs.do_optimise.value or
-               ( "do_qmmm_opt" in self.node.inputs and self.node.inputs.do_qmmm_opt.value ) ):
-                dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
-                if self.node.inputs.optimisation_parameters.get("thermal", False):
-                    self.parse_vibrational_analysis(
-                        self.retrieved.get_object_content(
-                            ChemShellCalculation.FILE_STDOUT, "r"
+            dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
+            if self.node.inputs.optimisation_parameters.get("thermal", False):
+                self.parse_vibrational_analysis(
+                    self.retrieved.get_object_content(
+                        ChemShellCalculation.FILE_STDOUT, "r"
+                    )
+                )
+            elif self.node.inputs.optimisation_parameters.get("neb", "no") in [
+                "free",
+                "frozen",
+                "perpendicular",
+            ]:
+                self.parse_xyz_path(retrieved_tmp_folder / "nebpath.xyz", "neb_path")
+                self.parse_neb_info(retrieved_tmp_folder / "nebinfo")
+            elif dl_find_path.exists():
+                descrip = "Optimised structure from a ChemShell optimisation"
+                input_pk = self.node.inputs.structure.pk
+                descrip += f" of node {input_pk}"
+                if isinstance(self.node.inputs.structure, SinglefileData):
+                    input_fname = self.node.inputs.structure.filename
+                    descrip += f" ({input_fname})"
+                # Store the optimised structure either as a SinglefileData '.cjson'
+                # file or (by default) as an AiiDA StructureData node.
+                if self.node.base.extras.get("output_structure_as_file", False):
+                    with open(dl_find_path, "rb") as f:
+                        self.out(
+                            "optimised_structure",
+                            SinglefileData(
+                                file=f,
+                                filename=ChemShellCalculation.FILE_DLFIND,
+                                label="CJSON Structure File",
+                                description=descrip,
+                            ),
                         )
+                else:
+                    with open(dl_find_path, "rb") as f:
+                        structure = chemsh_cjson_to_structure_data(f.read())
+                    structure.label = "Optimised Structure"
+                    structure.description = descrip
+                    self.out("optimised_structure", structure)
+                self.parse_optimisation_path(
+                    self.retrieved.get_object_content(
+                        ChemShellCalculation.FILE_STDOUT, "r"
                     )
-                elif self.node.inputs.optimisation_parameters.get("neb", "no") in [
-                    "free",
-                    "frozen",
-                    "perpendicular",
-                ]:
-                    self.parse_xyz_path(retrieved_tmp_folder / "nebpath.xyz", "neb_path")
-                    self.parse_neb_info(retrieved_tmp_folder / "nebinfo")
-                elif dl_find_path.exists():
-                    descrip = "Optimised structure from a ChemShell optimisation"
-                    input_pk = self.node.inputs.structure.pk
-                    descrip += f" of node {input_pk}"
-                    if isinstance(self.node.inputs.structure, SinglefileData):
-                        input_fname = self.node.inputs.structure.filename
-                        descrip += f" ({input_fname})"
-                    # Store the optimised structure either as a SinglefileData '.cjson'
-                    # file or (by default) as an AiiDA StructureData node.
-                    if self.node.base.extras.get("output_structure_as_file", False):
-                        with open(dl_find_path, "rb") as f:
-                            self.out(
-                                "optimised_structure",
-                                SinglefileData(
-                                    file=f,
-                                    filename=ChemShellCalculation.FILE_DLFIND,
-                                    label="CJSON Structure File",
-                                    description=descrip,
-                                ),
-                            )
-                    else:
-                        with open(dl_find_path, "rb") as f:
-                            structure = chemsh_cjson_to_structure_data(f.read())
-                        structure.label = "Optimised Structure"
-                        structure.description = descrip
-                        self.out("optimised_structure", structure)
-                    if "chargefitting_parameters" in self.node.inputs:
-                        with open(dl_find_path, "rb") as f:
-                                self.out("optimised_structure_file", SinglefileData(
-                                    file=f,
-                                    filename=ChemShellCalculation.FILE_DLFIND,
-                                    label="CJSON Structure File",
-                                    description=descrip,
-                                    ),
-                    )
+                )
+            else:
+                return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
 
-                    self.parse_optimisation_path(
-                        self.retrieved.get_object_content(
-                            ChemShellCalculation.FILE_STDOUT, "r"
-                        )
-                    )
+            if self.node.inputs.optimisation_parameters.get("save_path", False):
+                trj_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJPTH
+                trj_frc_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJFRC
+                if trj_path.exists():
+                    self.parse_xyz_path(trj_path, "trajectory_path")
+                    self.parse_xyz_forces(trj_frc_path, "trajectory_force")
                 else:
                     return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
-
-                if self.node.inputs.optimisation_parameters.get("save_path", False):
-                    trj_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJPTH
-                    trj_frc_path = retrieved_tmp_folder / ChemShellCalculation.FILE_TRJFRC
-                    if trj_path.exists():
-                        self.parse_xyz_path(trj_path, "trajectory_path")
-                        self.parse_xyz_forces(trj_frc_path, "trajectory_force")
-                    else:
-                        return self.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE
-
 
         if "chargefitting_parameters" in self.node.inputs:
             if self.node.inputs.chargefitting_parameters.get_dict():
@@ -175,48 +154,7 @@ class ChemShellParser(Parser):
                         self.out( "fitted_charges", List(list=charges, label="Fitted charges"))
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
-
-            #todo clean this up. no longer needed.
-            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
-            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
-            if filepath.exists():
-                from ase.io import read
-                atoms = read(filepath, format="proteindatabank")
-                structure = StructureData(ase=atoms)
-                structure.label = "Solvated Structure"
-                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
-                self.out("solute_in_solvent_struct", structure)
-                with open(filepath, "rb") as f:
-                    self.out( "solute_in_solvent_struct_file", SinglefileData(
-                                    file=f,
-                                    filename=filename,
-                                    label="Solvated Structure file",
-                                    description= "Solute structure solvated in a solvent to prepare for the MD run",
-                                ),
-                            )
-
-            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-            if filepath.exists() and not self.node.inputs.do_qmmm.value:
-                with open(filepath, "rb") as f:
-                    self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
-                              label="Combined Force Field of Solute+Solvent", 
-                              description = "Combined Force Field of Solute+Solvent",
-                    ))
-
-        if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
-            from ase.io import read
-            with self.retrieved.as_path(SolventCalculation.FILE_SOLVATED_STRUCT) as fpath:
-                atoms = read(fpath, format="xyz")
-                structure = StructureData(ase=atoms)
-                structure.label = "Solvated Structure"
-                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
-                self.out("solvated_structure", structure)
-
-        #rajany todo : do not parse it as it is not needed elsewhere
-        #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
-        #    descrip = f"Snapshots from the Solvation MD run \n"
-        #    self.out("snapshots", folder_node)
+        return ExitCode(0)
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
