@@ -390,7 +390,7 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result(self):
-        for i, qmmmctx in enumerate(self.ctx.qmmms.get('qmmms', [])):
+        for i, qmmmctx in enumerate(self.ctx.qmmms):
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
                 if "qmmm_shell_structure" not in qmmmctx.outputs:
