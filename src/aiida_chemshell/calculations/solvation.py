@@ -308,21 +308,20 @@ class SolventCalculation(ChemShellCalculation):
         """
         #rajany todo,
         return {
-                'driver'                : str,
-                'length_npt'            : int,         # in fs (timestep: 2 fs)
-                'length_nvt'            : int,         # in fs (timestep: 2 fs)
-                'length_production'     : int,        # in fs (timestep: 2 fs)
-                'max_ncycles'           : int,
-                'minimisation_npt'      : int,
-                'minimisation_nvt'      : int,
-                'neutralise'            : bool,
-                'solute'                : str,
-                'solutes_dist'          : float,
-                'solvent'               : str,
-                'padding'               : float,
-                'nsnapshots'            : int,
-                'fixed_npt'             : str,
-                'freeze_solute'         : bool,
+                'driver'         : str,
+                'npt'            : dict,
+                'nvt'            : dict,
+                'production'     : dict,
+                'minimise'       : dict,
+                'neutralise'     : dict,
+                'solute'         : str,
+                'solutes_dist'   : float,
+                'solvent'        : str,
+                'padding'        : float,
+                'nsnapshots'     : int,
+                'fixed_npt'      : str,
+                'freeze_solute'  : bool,
+                'max_ncycles'    : int,
 
         }
     @classmethod

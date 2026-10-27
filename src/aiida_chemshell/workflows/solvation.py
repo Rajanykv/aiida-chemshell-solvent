@@ -194,25 +194,19 @@ class SolvationWorkChain(WorkChain):
 
         if "md_parameters" not in inputs:
             md_parameters = {
-                'length_nvt'            : 10,         # in fs (timestep: 2 fs)
-                'minimisation_nvt'      : 10,
-                'length_npt'            : 10,         # in fs (timestep: 2 fs)
-                'minimisation_npt'      : 10,
-                'max_ncycles'           : 10,
-                'length_production'     : 20,        # in fs (timestep: 2 fs)
+                'nvt'        : {'length' : 10, 'minimisation' :10},  # in fs
+                'npt'        : {'length' : 10, 'minimisation' :10},  # in fs
+                'production' : {'length' : 20, },
+                'minimise'   : {'stepsize': 1.0, },
+                #'max_ncycles'           : 10,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
-                'fixed_npt'             : '',
+                #'fixed_npt'             : '',
                 #'solutes_dist'          : 3.0,
-
            }
         else:
             md_parameters = self.inputs["md_parameters"].get_dict()
 
-        #md_parameters.update({
-                #'driver'                :'mm_theory',
-                #'neutralise'            : True,
-        #})
         inputs["md_parameters"] = Dict(md_parameters)
 
         if 'metadata' in self.inputs.chemsh:
@@ -398,7 +392,7 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result(self):
-        for i, qmmmctx in enumerate(self.ctx.qmmms):
+        for qmmmctx in self.ctx.qmmms:
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
                 if "qmmm_shell_structure" not in qmmmctx.outputs:
