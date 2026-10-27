@@ -294,6 +294,10 @@ class SolvationWorkChain(WorkChain):
         if "qmmm_opt" not in qmmm_parameters:
             qmmm_parameters.update({ "qmmm_opt" : False})
 
+        #0 for all snapshots
+        if "nsnapshots" not in qmmm_parameters:
+            qmmm_parameters.update({ "nsnapshots" : 0})
+
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
 
@@ -312,19 +316,23 @@ class SolvationWorkChain(WorkChain):
 
         with retrieved_folder.as_path() as folder:
             snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+            nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
+            #0 for all snapshots. assigning a dummy large number
+            if nsnaps == 0:
+                nsnaps = 2000
             n=0
             for file_path in snapshots_dir.iterdir():
-              if file_path.is_file() and file_path.suffix == ".pun":
+              if n<nsnaps and file_path.is_file() and file_path.suffix == ".pun":
                   inputs.update({ "structure" : SinglefileData(file=file_path) })
                   future = self.submit(SolventCalculation, **inputs)
                   future.label = SolventCalculation.default_process_label(future)
                   future.description = (
                   f"Solvation Calculation Node pk: {self.node.pk}"
                   )
-                  qmmmctx = f"qmmm{n}"
+                  self.to_context(qmmms=append_(future))
+                  #qmmmctx = f"qmmm{n}"
                   n += 1
                   #return ToContext(**{qmmmctx : future})
-                  return ToContext(qmmms=append_(future))
 
         del inputs
         return
