@@ -656,6 +656,7 @@ class ChemShellCalculation(CalcJob):
                 "timestep": float,
                 "temperature" : float,
                 "ff" : str,
+                "atom_names": str,
             }
         elif theory == "GULP":
             valid_keys = {
