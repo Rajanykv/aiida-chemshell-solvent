@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy
 from aiida.common import ModificationNotAllowed
 from aiida.engine import ExitCode
-from aiida.orm import ArrayData, Dict, Float, SinglefileData, TrajectoryData, List, StructureData
+from aiida.orm import ArrayData, Dict, Float, List
+from aiida.orm import SinglefileData, TrajectoryData, StructureData, FolderData
 from aiida.parsers.parser import Parser
 
 from aiida_chemshell.calculations.base import ChemShellCalculation
@@ -221,10 +222,17 @@ class ChemShellParser(Parser):
             structure.description = "A Shell cut from the solvated box for QMMM calculation"
             self.out("qmmm_shell_structure", structure)
 
-        #rajany todo : do not parse it as it is not needed elsewhere
         #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
-        #    descrip = f"Snapshots from the Solvation MD run \n"
-        #    self.out("snapshots", folder_node)
+            #descrip = f"Snapshots from the Solvation MD run \n"
+            #with self.retrieved.as_path() as folder:
+                #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+                ##folder_node = FolderData(tree=snapshots_dir)
+                #folder_node = FolderData()
+                ##folder.put_object_from_tree(snapshots_dir)
+                #for file_path in snapshots_dir.iterdir():
+                    #if file_path.is_file() and file_path.suffix == ".xyz":
+                        #folder.put_object_from_file(file_path)
+            #self.out("snapshots", folder_node)
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
