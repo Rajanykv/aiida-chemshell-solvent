@@ -25,8 +25,6 @@ class SolvationWorkChain(WorkChain):
         spec.expose_inputs(SolventCalculation,include=['metadata'], namespace="chemsh")
 
         ## Workflow ##
-        #if_(cls.not_md_dryrun)(
-        #   )
         spec.outline(
             cls.validate_inputs_1,
             cls.qm_optimise,
@@ -49,8 +47,7 @@ class SolvationWorkChain(WorkChain):
     def validate_inputs_2(self):
         """Validate the inputs provided to the WorkChain."""
         #has_box = "solvent_box" in self.inputs
-        #has_file = "structure2" in self.inputs
-        has_file = "structure" in self.ctx.md.inputs.structure
+        has_file = "structure2" in self.inputs
         if not has_file:
             return SolventCalculation.exit_codes.ERROR_NO_INPUTS
         return None
@@ -59,6 +56,7 @@ class SolvationWorkChain(WorkChain):
         """Perform the geometry optimisation."""
 
         inputs = self.exposed_inputs(SolventCalculation)
+
         inputs.update({
                   "do_optimise": Bool(True),
         })
@@ -87,9 +85,6 @@ class SolvationWorkChain(WorkChain):
         future.description = (
             f"Geometry optimisation step from WorkChainNode pk: {self.node.pk}"
         )
-        #if inputs.dryrun_opt:
-        #    self.ctx.optimise = future
-        #else:
         return ToContext(optimise=future)
 
         del inputs
@@ -150,16 +145,12 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-        #avoid parsing output at each step
-        inputs.update({ "optimisation_parameters" : {}, })
-
         if "dryrun_charge" in inputs and inputs.dryrun_charge.value:
             inputs.update({
                     "do_charge_fit" :  Bool(False),
                     "chargefitting_parameters": {},
         })
 
-        #if not self.inputs.dryrunmd.value:
         #future = self.submit(SolventCalculation, **inputs)
         #future.label = SolventCalculation.default_process_label(future)
         #future.description = (
@@ -176,8 +167,6 @@ class SolvationWorkChain(WorkChain):
 
     def solvate_md(self):
         """Perform the classical MD equillibration step."""
-
-        #inputs = self.exposed_inputs(SolventCalculation)
 
         inputs = self.chargefit()
         inputs.update({
@@ -198,10 +187,11 @@ class SolvationWorkChain(WorkChain):
                 'npt'        : {'length' : 10, 'minimisation' :10},  # in fs
                 'production' : {'length' : 20, },
                 'minimise'   : {'stepsize': 1.0, },
-                #'max_ncycles'           : 10,
                 'padding'               : 50.0,
                 'nsnapshots'            : 10,
+                #'max_ncycles'           : 10,
                 #'fixed_npt'             : '',
+                #'fixed_nvt'             : '',
                 #'solutes_dist'          : 3.0,
            }
         else:
@@ -255,17 +245,17 @@ class SolvationWorkChain(WorkChain):
 
         if "atom_names" not in mm_parameters:
             mm_parameters.update({ "atom_names" : "types"})
+
         #if "atom_names" not in qm_parameters:
         #    qm_parameters.update({ "atom_names" : "symbol"})
+        #if "charge" not in inputs.qm_parameters:
+        #    qm_parameters.update({ "charge" : 0})
 
         if "mult" not in qm_parameters:
             qm_parameters.update({ "mult" : 1})
 
         inputs["mm_parameters"] = Dict(dict=mm_parameters)
         inputs["qm_parameters"] = Dict(dict=qm_parameters)
-
-        #if "charge" not in inputs.qm_parameters:
-        #    inputs["qm_parameters"].get_dict().update({ "charge" : 0})
 
         inputs.update({"structure2" : self.ctx.md.inputs.structure})
         inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
@@ -331,7 +321,6 @@ class SolvationWorkChain(WorkChain):
         del inputs
         return
 
-#template for outputs:Add/remove if extra outputs to be parsed.
     def result_opt(self):
         """Extract the results."""
 
@@ -344,7 +333,7 @@ class SolvationWorkChain(WorkChain):
 
         status = self.finished_status(self.ctx.optimise)
         if status:
-            return f"Error Encountered. Proceeding to next.. Error: status"
+            self.report f"Error Encountered. Proceeding to next.. Error: {status}"
 
         return
 
@@ -356,9 +345,10 @@ class SolvationWorkChain(WorkChain):
         if not "fitted_charges" in self.ctx.chargefit.outputs:
             if not "charges_file" in self.ctx.chargefit.outputs:
                 return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
+
         status = self.finished_status(self.ctx.chargefit)
         if status:
-            return f"Error Encountered. Proceeding to next.. Error: status"
+            return f"Error Encountered. Proceeding to next.. Error: {status}"
 
         return
 
@@ -388,7 +378,7 @@ class SolvationWorkChain(WorkChain):
 
         status = self.finished_status(self.ctx.md)
         if status:
-            return f"Error Encountered. Proceeding to next.. Error: status"
+            self.report f"Error Encountered. Proceeding to next.. Error: {status}"
         return
 
     def result(self):
@@ -409,9 +399,11 @@ class SolvationWorkChain(WorkChain):
 
             status = self.finished_status(qmmmctx)
             if status:
-                return f"Error Encountered. Proceeding to next.. Error: status"
+                self.report f"Error Encountered. Proceeding to next.. Error: {status}"
         return
 
+    #if_(cls.not_md_dryrun)(
+    #   )
     def not_md_dryrun(self):
         return not self.inputs.dryrunmd.value
 
@@ -426,11 +418,12 @@ class SolvationWorkChain(WorkChain):
         elif calc_node.is_failed:
             return(f"Step {calc_node.process_label} finished with non-zero exit code: {calc_node.exit_status}.")
 
+        elif not calc_node.is_finished_ok:
+            return(f"Step {calc_node.process_label} is either still running or stopped abnormally.")
+
         elif "_scheduler-stderr.txt" in calc_node.outputs.retrieved.list_object_names():
             stderr = calc_node.outputs.retrieved.get_object_content("_scheduler-stderr.txt")
             if stderr:
                return(f"Step {calc_node.process_label} exited with errors; inspect _scheduler-stderr.txt/output.log.")
 
-        elif not calc_node.is_finished_ok:
-            return(f"Step {calc_node.process_label} is either still running or stopped abnormally.")
         return
