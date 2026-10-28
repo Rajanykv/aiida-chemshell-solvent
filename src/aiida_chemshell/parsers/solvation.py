@@ -224,15 +224,20 @@ class ChemShellParser(Parser):
 
         #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
             #descrip = f"Snapshots from the Solvation MD run \n"
-            #with self.retrieved.as_path() as folder:
+           # with self.retrieved.as_path() as folder:
                 #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
-                ##folder_node = FolderData(tree=snapshots_dir)
+                #folder_node = FolderData(tree=snapshots_dir)
                 #folder_node = FolderData()
-                ##folder.put_object_from_tree(snapshots_dir)
+                #folder.put_object_from_tree(snapshots_dir)
+                #for file_path in snapshots_dir.glob("*.xyz"):
                 #for file_path in snapshots_dir.iterdir():
                     #if file_path.is_file() and file_path.suffix == ".xyz":
                         #folder.put_object_from_file(file_path)
             #self.out("snapshots", folder_node)
+        folder = retrieved_tmp_folder /SolventCalculation.FOLDER_SNAPSHOTS
+        if folder.exists():
+            folder_node = FolderData(tree=folder)
+            self.out("snapshots", folder_node)
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""

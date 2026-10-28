@@ -296,10 +296,11 @@ class SolvationWorkChain(WorkChain):
                         "md_parameters" : {},
                        })
 
-        retrieved_folder = self.ctx.md.outputs.retrieved
-
-        with retrieved_folder.as_path() as folder:
-            snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+        #retrieved_folder = self.ctx.md.outputs.retrieved
+        #with retrieved_folder.as_path() as folder:
+            #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+        retrieved_folder = self.ctx.md.outputs.snapshots
+        with retrieved_folder.as_path() as snapshots_dir:
             nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
             #0 for all snapshots. assigning a dummy large number
             if nsnaps == 0:
@@ -333,7 +334,7 @@ class SolvationWorkChain(WorkChain):
 
         status = self.finished_status(self.ctx.optimise)
         if status:
-            self.report f"Error Encountered. Proceeding to next.. Error: {status}"
+            self.report(f"Error Encountered. Proceeding to next.. Error: {status}")
 
         return
 
@@ -365,20 +366,15 @@ class SolvationWorkChain(WorkChain):
                 return SolventCalculation.exit_codes.ERROR_SOLVATED_STRUCTURE_NOT_FOUND
             if not "solute_in_solvent_ff" in self.ctx.md.outputs:
                 return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
-            #if "snapshots" not in self.ctx.md.outputs:
-            retrieved_folder = self.ctx.md.outputs.retrieved
-            if SolventCalculation.FOLDER_SNAPSHOTS not in retrieved_folder.list_object_names():
-                if self.ctx.md.inputs.dryrunmd.value:
-                    pass
-                else:
-                    return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
+            if "snapshots" not in self.ctx.md.outputs:
+                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
 
         else:
                 return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
 
         status = self.finished_status(self.ctx.md)
         if status:
-            self.report f"Error Encountered. Proceeding to next.. Error: {status}"
+            self.report(f"Error Encountered. Proceeding to next.. Error: {status}")
         return
 
     def result(self):
@@ -399,7 +395,7 @@ class SolvationWorkChain(WorkChain):
 
             status = self.finished_status(qmmmctx)
             if status:
-                self.report f"Error Encountered. Proceeding to next.. Error: {status}"
+                self.report(f"Error Encountered. Proceeding to next.. Error: {status}")
         return
 
     #if_(cls.not_md_dryrun)(

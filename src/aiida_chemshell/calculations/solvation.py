@@ -876,7 +876,7 @@ class SolventCalculation(ChemShellCalculation):
             if self.inputs.chargefitting_parameters.get_dict():
                 calc_info.retrieve_list.append(f"{SolventCalculation.FILE_CHARGES}")
         if "md_parameters" in self.inputs:
-            calc_info.retrieve_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FOLDER_SNAPSHOTS}")
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
         if self.inputs.do_qmmm.value:
