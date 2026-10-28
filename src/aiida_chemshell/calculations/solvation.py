@@ -732,6 +732,10 @@ class SolventCalculation(ChemShellCalculation):
             else:
                     script += "job.run(dryrun=False)\njob.result.save()\n"
 
+            if job_str == "Opt":
+                    script += f"shell.save('_dl_find.cjson')\n"
+                    script += f"shell.save('_dl_find.pun')\n"
+                    script += f"shell.save('_dl_find.xyz')"
             return script
 
         return script
