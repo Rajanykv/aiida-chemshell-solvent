@@ -399,7 +399,7 @@ class SolvationWorkChain(WorkChain):
                     return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
 
                 if "optimised_structure" not in qmmmctx.outputs:
-                    if not self.ctx.qmmmctx.inputs.do_qmmm_opt.value:
+                    if not qmmmctx.inputs.do_qmmm_opt.value:
                         pass
                     else:
                         return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
