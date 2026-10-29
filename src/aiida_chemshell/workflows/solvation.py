@@ -299,25 +299,33 @@ class SolvationWorkChain(WorkChain):
         #retrieved_folder = self.ctx.md.outputs.retrieved
         #with retrieved_folder.as_path() as folder:
             #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
-        retrieved_folder = self.ctx.md.outputs.snapshots
-        with retrieved_folder.as_path() as snapshots_dir:
-            nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
-            #0 for all snapshots. assigning a dummy large number
-            if nsnaps == 0:
-                nsnaps = 2000
-            n=0
-            for file_path in snapshots_dir.iterdir():
-              if n<nsnaps and file_path.is_file() and file_path.suffix == ".pun":
-                  inputs.update({ "structure" : SinglefileData(file=file_path) })
-                  future = self.submit(SolventCalculation, **inputs)
-                  future.label = SolventCalculation.default_process_label(future)
-                  future.description = (
-                  f"Solvation Calculation Node pk: {self.node.pk}"
-                  )
-                  self.to_context(qmmms=append_(future))
-                  #qmmmctx = f"qmmm{n}"
-                  n += 1
-                  #return ToContext(**{qmmmctx : future})
+        if "snapshots" in self.ctx.md.outputs:
+            retrieved_folder = self.ctx.md.outputs.snapshots
+            with retrieved_folder.as_path() as snapshots_dir:
+                nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
+                #0 for all snapshots. assigning a dummy large number
+                if nsnaps == 0:
+                    nsnaps = 2000
+                n=0
+                for file_path in snapshots_dir.iterdir():
+                  if n<nsnaps and file_path.is_file() and file_path.suffix == ".pun":
+                      inputs.update({ "structure" : SinglefileData(file=file_path) })
+                      future = self.submit(SolventCalculation, **inputs)
+                      future.label = SolventCalculation.default_process_label(future)
+                      future.description = (
+                      f"Solvation Calculation Node pk: {self.node.pk}"
+                      )
+                      self.to_context(qmmms=append_(future))
+                      #qmmmctx = f"qmmm{n}"
+                      n += 1
+                      #return ToContext(**{qmmmctx : future})
+
+        else:
+            if self.ctx.md.inputs.dryrunmd.value:
+                #return ExitCode(status=999, message="Snapshots not found. Full run of MD was not performed.")
+                return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
+            else:
+                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
 
         del inputs
         return
@@ -367,7 +375,10 @@ class SolvationWorkChain(WorkChain):
             if not "solute_in_solvent_ff" in self.ctx.md.outputs:
                 return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
             if "snapshots" not in self.ctx.md.outputs:
-                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
+                if self.ctx.md.inputs.dryrunmd.value:
+                    pass
+                else:
+                    return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
 
         else:
                 return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
@@ -378,6 +389,8 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result(self):
+        if "qmmms" not in self.ctx:
+            return
         for qmmmctx in self.ctx.qmmms:
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 

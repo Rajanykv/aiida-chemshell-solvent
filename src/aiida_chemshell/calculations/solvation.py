@@ -248,7 +248,7 @@ class SolventCalculation(ChemShellCalculation):
             311,
             "ERROR_MD_NOT_FINISHED",
             message=(
-                "MD run has not completed."
+                "A Full MD run was not performed or MD run not completed."
             ),
         )
         spec.exit_code(
