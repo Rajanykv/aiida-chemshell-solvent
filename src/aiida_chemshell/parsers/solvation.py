@@ -213,7 +213,7 @@ class ChemShellParser(Parser):
                 self.out("solvated_structure", structure)
 
 
-        filepath = retrieved_tmp_folder / solventcalculation.FILE_SOLVENT_XYZ
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLVENT_XYZ
         if filepath.exists():
             from ase.io import read
             atoms = read(filepath, format="xyz")
