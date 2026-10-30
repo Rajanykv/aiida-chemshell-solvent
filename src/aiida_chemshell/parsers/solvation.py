@@ -213,13 +213,22 @@ class ChemShellParser(Parser):
                 self.out("solvated_structure", structure)
 
 
+        filepath = retrieved_tmp_folder / solventcalculation.FILE_SOLVENT_XYZ
+        if filepath.exists():
+            from ase.io import read
+            atoms = read(filepath, format="xyz")
+            structure = StructureData(ase=atoms)
+            structure.label = "Solvent"
+            structure.description = "The solvent box used for solvation calculation"
+            self.out("solvent_box", structure)
+
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL
         if filepath.exists():
             from ase.io import read
             atoms = read(filepath, format="xyz")
             structure = StructureData(ase=atoms)
-            structure.label = "QMMM Shell Structure"
-            structure.description = "A Shell cut from the solvated box for QMMM calculation"
+            structure.label = "Shell cut for QMMM"
+            structure.description = "Shell cut from the solvated box for QMMM calculation"
             self.out("qmmm_shell_structure", structure)
 
         #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
