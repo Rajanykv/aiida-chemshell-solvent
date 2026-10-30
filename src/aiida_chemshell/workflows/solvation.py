@@ -394,7 +394,7 @@ class SolvationWorkChain(WorkChain):
         for qmmmctx in self.ctx.qmmms:
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
-                if "qmmm_shell_structure" not in qmmmctx.outputs:
+                if "shell_cut_for_qmmm" not in qmmmctx.outputs:
                     return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
 
                 if "optimised_structure" not in qmmmctx.outputs:

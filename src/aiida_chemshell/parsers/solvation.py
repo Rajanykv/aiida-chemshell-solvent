@@ -229,7 +229,7 @@ class ChemShellParser(Parser):
             structure = StructureData(ase=atoms)
             structure.label = "Shell cut for QMMM"
             structure.description = "Shell cut from the solvated box for QMMM calculation"
-            self.out("qmmm_shell_structure", structure)
+            self.out("shell_cut_for_qmmm", structure)
 
         #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
             #descrip = f"Snapshots from the Solvation MD run \n"

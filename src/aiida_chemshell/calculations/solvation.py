@@ -39,6 +39,7 @@ class SolventCalculation(ChemShellCalculation):
     FILE_FF_SHELL = "ff_shell_around_solute.ff"
     FILE_QMMM_SHELL = "qmmm_shell.xyz"
     FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
+    FILE_SOLVENT_XYZ = "_solvent.xyz"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -169,6 +170,14 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
+            "solvent_box",
+            valid_type=SinglefileData|StructureData,
+            required=False,
+            help=(
+                "Solvent Box used for the calculations."
+            ),
+        )
+        spec.output(
             "solvated_structure",
             valid_type=(StructureData, SinglefileData),
             required=False,
@@ -209,7 +218,7 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
-            "qmmm_shell_structure",
+            "shell_cut_for_qmmm",
             valid_type=StructureData,
             required=False,
             help=(
