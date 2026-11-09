@@ -28,10 +28,12 @@ class ChemShellParser(Parser):
             #md does not have results object
             if "md_parameters" in self.node.inputs and self.node.inputs.md_parameters.get_dict():
                 pass
+            if self.node.inputs.do_qmmm.value:
+                pass
             else:
                 return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
 
-        if "md_parameters" not in self.node.inputs or not self.node.inputs.md_parameters.get_dict():
+        if not self.node.inputs.do_md_equillibrate.value and not self.node.inputs.do_qmmm.value:
         # Read the 'json' formatted results file
             with open(results_path, "rb") as f:
                 results = json.loads(f.read())
@@ -175,33 +177,15 @@ class ChemShellParser(Parser):
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 
-            #todo clean this up. no longer needed.
-            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
-            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_STRUCT
-            if filepath.exists():
-                from ase.io import read
-                atoms = read(filepath, format="proteindatabank")
-                structure = StructureData(ase=atoms)
-                structure.label = "Solvated Structure"
-                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
-                self.out("solute_in_solvent_struct", structure)
-                with open(filepath, "rb") as f:
-                    self.out( "solute_in_solvent_struct_file", SinglefileData(
-                                    file=f,
-                                    filename=filename,
-                                    label="Solvated Structure file",
-                                    description= "Solute structure solvated in a solvent to prepare for the MD run",
-                                ),
-                            )
 
-            filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-            filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-            if filepath.exists() and not self.node.inputs.do_qmmm.value:
-                with open(filepath, "rb") as f:
-                    self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
-                              label="Combined Force Field of Solute+Solvent", 
-                              description = "Combined Force Field of Solute+Solvent",
-                    ))
+        filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+        if filepath.exists() and not self.node.inputs.do_qmmm.value:
+            with open(filepath, "rb") as f:
+                self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
+                          label="Combined Force Field of Solute+Solvent",
+                          description = "Combined Force Field of Solute+Solvent",
+                ))
 
         if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
             from ase.io import read
@@ -222,27 +206,41 @@ class ChemShellParser(Parser):
             structure.description = "The solvent box used for solvation calculation"
             self.out("solvent_box", structure)
 
-        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL
+        filename =  SolventCalculation.FILE_QMMM_SHELL_XYZ
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL_XYZ
         if filepath.exists():
             from ase.io import read
             atoms = read(filepath, format="xyz")
             structure = StructureData(ase=atoms)
-            structure.label = "Shell cut for QMMM"
-            structure.description = "Shell cut from the solvated box for QMMM calculation"
-            self.out("shell_cut_for_qmmm", structure)
-
+            structure.label = "Cluster cut for QMMM"
+            structure.description = "Shell cluster cut from the solvated box for QMMM calculation"
+            self.out("structure_of_qmmm_cluster", structure)
+        filename =  SolventCalculation.FILE_QMMM_SHELL_PUNCH
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL_PUNCH
+        if filepath.exists():
+            with open(filepath, "rb") as f:
+                self.out( "punchfile_qmmm_cluster", SinglefileData(file=f, filename=filename,
+                          label="QMMM cluster cut from the Box of Solute+Solvent",
+                          description = "QMMM cluster with Solute+Solvent",
+            ))
+        filename =  SolventCalculation.FILE_FF_SHELL
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_FF_SHELL
+        if filepath.exists():
+            with open(filepath, "rb") as f:
+                self.out( "forcefield_for_qmmm_cluster", SinglefileData(file=f, filename=filename,
+                          label="Force Field of the QMMM cluster cut from the Box of Solute+Solvent",
+                          description = "Force Field of QMMM cluster with Solute+Solvent",
+                ))
         #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
             #descrip = f"Snapshots from the Solvation MD run \n"
            # with self.retrieved.as_path() as folder:
                 #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
-                #folder_node = FolderData(tree=snapshots_dir)
                 #folder_node = FolderData()
                 #folder.put_object_from_tree(snapshots_dir)
                 #for file_path in snapshots_dir.glob("*.xyz"):
                 #for file_path in snapshots_dir.iterdir():
                     #if file_path.is_file() and file_path.suffix == ".xyz":
                         #folder.put_object_from_file(file_path)
-            #self.out("snapshots", folder_node)
         folder = retrieved_tmp_folder /SolventCalculation.FOLDER_SNAPSHOTS
         if folder.exists():
             folder_node = FolderData(tree=folder)
