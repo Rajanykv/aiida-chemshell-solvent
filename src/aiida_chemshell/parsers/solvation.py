@@ -251,14 +251,14 @@ class ChemShellParser(Parser):
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("qm_region_simple", indices_list)
+            self.out("qm_region_simple", List(list=indices_list, label= "Simple QM region") )
 
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION
         if filepath.exists():
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("qmmm_active_region", indices_list)
+            self.out("qmmm_active_region", List(list=indices_list, label= "QMMM active region") )
 
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
