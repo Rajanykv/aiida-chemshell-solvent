@@ -246,6 +246,21 @@ class ChemShellParser(Parser):
             folder_node = FolderData(tree=folder)
             self.out("snapshots", folder_node)
 
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QM_INDICES_SOLUTE
+        if filepath.exists():
+            from numpy import loadtxt
+            arr = loadtxt(filepath, dtype=int)
+            indices_list = arr.tolist()
+            self.out("qm_region_simple", indices_list)
+
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION
+        if filepath.exists():
+            from numpy import loadtxt
+            arr = loadtxt(filepath, dtype=int)
+            indices_list = arr.tolist()
+            self.out("qmmm_active_region", indices_list)
+
+
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
         read = False

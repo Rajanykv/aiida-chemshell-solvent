@@ -40,6 +40,8 @@ class SolventCalculation(ChemShellCalculation):
     FILE_QMMM_SHELL_XYZ = "qmmm_shell.xyz"
     FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
     FILE_SOLVENT_XYZ = "_solvent.xyz"
+    FILE_ACTIVE_REGION = "qmmm_opt_active_region.txt"
+    FILE_QM_INDICES_SOLUTE = "qmmm_region_simple_solute.txt"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -239,6 +241,22 @@ class SolventCalculation(ChemShellCalculation):
             required=False,
             help=(
                 "Shell cut form solvated box for QMMM calculations."
+            ),
+        )
+        spec.output(
+            "qm_region_simple",
+            valid_type=List,
+            required=False,
+            help=(
+                "Simplest QM region suggested for future QMMM calculatio."
+            ),
+        )
+        spec.output(
+            "qmmm_active_region",
+            valid_type=List,
+            required=False,
+            help=(
+                "Active region for future QMMM Optimisation calculation."
             ),
         )
         spec.exit_code(
@@ -481,7 +499,7 @@ class SolventCalculation(ChemShellCalculation):
                 job_str += "_FullRun"
             job_str += "_Step"
         elif node.inputs.do_qmmm.value:
-            job_str = "_QMMMStep"
+            job_str = "_QMMM_Prep_Step"
         elif node.inputs.do_optimise.value:
             job_str = "_OptStep"
         else:
@@ -719,55 +737,16 @@ class SolventCalculation(ChemShellCalculation):
             script += f"ff = Forcefield(input='{self.inputs.force_field_file.filename:s}')\n"
             script += f"ff_cut = ff.getSelected(indices_shell)\n"
             script += f"ff_cut.write('ff_shell_around_solute.ff')\n"
-            #Creates a molecular mechanics Theory object
-            #mm_theory = ChemShellMMTheory[
-            #    self.inputs.mm_parameters.get("theory").upper()
-            #]
-            #if mm_theory != ChemShellMMTheory.NONE:
-            #    mm_theory_key = SolventCalculation.get_mm_theory_key(mm_theory)
 
-            #    script += f"from chemsh import {mm_theory_key:s}\n"
-            #    script += f"mmtheory = {mm_theory_key:s}("
-            #    script += f"ff = 'ff_shell_around_solute.ff', "
-            #    for key in self.inputs.mm_parameters.keys():
-            #        if key == "theory":
-            #                continue
-            #        if key == "ff":
-            #            continue
-            #        #if key == "temperature":
-            #        #    continue
-            #        val = self.inputs.mm_parameters.get(key)
-            #        if isinstance(val, str):
-            #            script += key + "='" + val + "'" + ", "
-            #        else:
-            #            script += key + "=" + str(val) + ", "
+            script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
+            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
+            script_ch += f"from numpy import savetxt\n"
+            script_ch += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
+            script_ch += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
 
-            #if "atom_names" not in self.inputs.mm_parameters.keys():
-            #    script += f"atom_names = 'types', "
-            #script += ")\n"
-            #script += f"from chemsh import QMMM\n"
-            #script += "qmmm = QMMM(frag=shell, qm=qmtheory, mm=mmtheory, "
-            #script += f"qm_region=indices_qm_region, "
-            #script += f")\n"
-
-            #script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
-            #script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
-
-            #job_str = "Opt" if self.inputs.do_qmmm_opt.value else "SP"
-            #script += f"job = {job_str:s}(theory=qmmm, active=indices_active_region"
             #if job_str == "Opt":
             #    script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
-            #script += f")\n"
 
-            #if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
-            #        script += "job.run(dryrun=True)\njob.result.save()\n"
-            #else:
-            #        script += "job.run(dryrun=False)\njob.result.save()\n"
-
-            #if job_str == "Opt":
-            #        script += f"shell.save('_dl_find.cjson')\n"
-            #        script += f"shell.save('_dl_find.pun')\n"
-            #        script += f"shell.save('_dl_find.xyz')"
             return script
 
         return script
@@ -916,8 +895,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_XYZ}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
-            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
-            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_XYZ}")
-            calc_info.retrieve_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QM_INDICES_SOLUTE}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_ACTIVE_REGION}")
 
         return calc_info
