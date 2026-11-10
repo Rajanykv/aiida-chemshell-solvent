@@ -251,15 +251,23 @@ class ChemShellParser(Parser):
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("qm_region_simple", List(list=indices_list, label= "Simple QM region") )
+            self.out("simple_qm_region_solute", List(list=indices_list, label= "Simple QM region") )
 
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION
         if filepath.exists():
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("qmmm_active_region", List(list=indices_list, label= "QMMM active region") )
+            self.out("qmmm_active_region_index_list", List(list=indices_list, label= "QMMM active region") )
 
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION_STRUCT
+        if filepath.exists():
+            from ase.io import read
+            atoms = read(filepath, format="xyz")
+            structure = StructureData(ase=atoms)
+            structure.label = "Active Region for QMMM Optimisation"
+            structure.description = "Active region cut for future QMMM optimisation calculation"
+            self.out("qmmm_active_region_struct", structure)
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""

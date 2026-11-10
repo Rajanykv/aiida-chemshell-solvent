@@ -41,6 +41,7 @@ class SolventCalculation(ChemShellCalculation):
     FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
     FILE_SOLVENT_XYZ = "_solvent.xyz"
     FILE_ACTIVE_REGION = "qmmm_opt_active_region.txt"
+    FILE_ACTIVE_REGION_STRUCT = "qmmm_opt_active_region.xyz"
     FILE_QM_INDICES_SOLUTE = "qmmm_region_simple_solute.txt"
 
     @classmethod
@@ -244,7 +245,7 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
-            "qm_region_simple",
+            "simple_qm_region_solute",
             valid_type=List,
             required=False,
             help=(
@@ -252,8 +253,16 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
-            "qmmm_active_region",
+            "qmmm_active_region_index_list",
             valid_type=List,
+            required=False,
+            help=(
+                "Active region for future QMMM Optimisation calculation."
+            ),
+        )
+        spec.output(
+            "qmmm_active_region_struct",
+            valid_type=StructureData| SinglefileData,
             required=False,
             help=(
                 "Active region for future QMMM Optimisation calculation."
@@ -743,6 +752,8 @@ class SolventCalculation(ChemShellCalculation):
             script += f"from numpy import savetxt\n"
             script += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
             script += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
+            script += f"cut_active = shell.getSelected(indices_active_region)\n"
+            script += f"cut_active.write('{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}')\n"
 
             #if job_str == "Opt":
             #    script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
@@ -897,5 +908,6 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QM_INDICES_SOLUTE}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_ACTIVE_REGION}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}")
 
         return calc_info
