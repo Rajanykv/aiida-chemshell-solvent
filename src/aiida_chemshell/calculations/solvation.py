@@ -753,7 +753,7 @@ class SolventCalculation(ChemShellCalculation):
             script += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
             script += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
             script += f"cut_active = shell.getSelected(indices_active_region)\n"
-            script += f"cut_active.write('{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}')\n"
+            script += f"cut_active.save('{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}')\n"
 
             #if job_str == "Opt":
             #    script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
