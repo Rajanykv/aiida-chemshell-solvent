@@ -274,8 +274,8 @@ class SolvationWorkChain(WorkChain):
             if "radius_shell" not in qmmm_parameters:
                 qmmm_parameters.update({ "radius_shell" : 20})
 
-            #if "radius_active" not in qmmm_parameters:
-            #    qmmm_parameters.update({ "radius_active" : 8})
+            if "radius_active" not in qmmm_parameters:
+                qmmm_parameters.update({ "radius_active" : 8})
 
             #0 for all snapshots
             if "nsnapshots" not in qmmm_parameters:

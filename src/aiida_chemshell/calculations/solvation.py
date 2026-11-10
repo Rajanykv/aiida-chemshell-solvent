@@ -740,9 +740,9 @@ class SolventCalculation(ChemShellCalculation):
 
             script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
-            script_ch += f"from numpy import savetxt\n"
-            script_ch += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
-            script_ch += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
+            script += f"from numpy import savetxt\n"
+            script += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
+            script += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
 
             #if job_str == "Opt":
             #    script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
