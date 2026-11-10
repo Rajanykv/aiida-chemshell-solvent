@@ -665,7 +665,7 @@ class SolventCalculation(ChemShellCalculation):
                             param_str += key + "=" + str(val) + ", "
 
                     if 'rcut' in self.inputs.mm_parameters:
-                        param_str += f"rcut={rcut}, "
+                        param_str += f"rcut= rcut, "
                     #if mm_theory_key.lower() == "dl_poly":
                     numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
                     sysmpicmd = self.inputs.sysmpi.value if self.inputs.sysmpi.value else "mpirun"
