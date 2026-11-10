@@ -62,15 +62,18 @@ class SolvationWorkChain(WorkChain):
         })
 
         if "qm_parameters" not in self.inputs:
-            inputs["qm_parameters"] = Dict(
-                {
+            qm_parameters = {
                 "theory": "NWChem",
                 "method": "dft",
                 "functional": "B3LYP",
                 "basis": "cc-pvdz",
                 }
-            )
 
+        else:
+            qm_parameters = self.inputs.qm_parameters.get_dict()
+
+        #if "atom_names" not in qm_parameters:
+        #    qm_parameters.update({ "atom_names" : "names"})
         if "optimisation_parameters" not in self.inputs:
             inputs["optimisation_parameters"] = Dict({})
 
@@ -79,6 +82,7 @@ class SolvationWorkChain(WorkChain):
 
         #to avoid parsing output
         inputs.update({"chargefitting_parameters": {},})
+        inputs.update({"qm_parameters" : Dict(qm_parameters)})
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -102,12 +106,13 @@ class SolvationWorkChain(WorkChain):
                 "basis": "cc-pvdz",
                 }
         else:
-                qm_parameters = self.inputs["qm_esp_parameters"]
+                qm_esp_parameters = self.inputs["qm_esp_parameters"].get_dict()
 
-        #if "atom_names" not in qm_parameters:
-        #    qm_parameters.update({ "atom_names" : "symbol"})
+        #if "atom_names" not in qm_esp_parameters:
+        #    qm_esp_parameters.update({ "atom_names" : "names"})
 
-        inputs.qm_parameters = Dict(dict=qm_parameters)
+        inputs.qm_parameters = Dict(dict=qm_esp_parameters)
+
         if 'optimise' in self.ctx and self.ctx.optimise.is_finished:
 
             if not self.ctx.optimise.is_finished_ok:
@@ -140,7 +145,7 @@ class SolvationWorkChain(WorkChain):
         if "solvent_parameters" not in self.inputs:
             inputs["solvent_parameters"] = Dict({
                 "solvent_name" : "water",
-                "box_halflength" : 30,
+                "box_length" : 30,
         })
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
@@ -220,7 +225,12 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.exposed_inputs(SolventCalculation)
 
-        inputs.update({
+        if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
+            inputs.update({
+                     "do_qmmm" : Bool(not self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']),
+        })
+        else:
+            inputs.update({
                      "do_qmmm" : Bool(True),
         })
 
@@ -247,86 +257,69 @@ class SolvationWorkChain(WorkChain):
             mm_parameters.update({ "atom_names" : "types"})
 
         #if "atom_names" not in qm_parameters:
-        #    qm_parameters.update({ "atom_names" : "symbol"})
+        #    qm_parameters.update({ "atom_names" : "names"})
         #if "charge" not in inputs.qm_parameters:
         #    qm_parameters.update({ "charge" : 0})
 
         if "mult" not in qm_parameters:
             qm_parameters.update({ "mult" : 1})
 
-        inputs["mm_parameters"] = Dict(dict=mm_parameters)
         inputs["qm_parameters"] = Dict(dict=qm_parameters)
+        inputs["mm_parameters"] = Dict(dict=mm_parameters)
 
-        inputs.update({"structure2" : self.ctx.md.inputs.structure})
-        inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
+        if inputs.do_qmmm.value:
+            inputs.update({"structure2" : self.ctx.md.inputs.structure})
+            inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
 
-        if "radius_shell" not in qmmm_parameters:
-            qmmm_parameters.update({ "radius_shell" : 20})
+            if "radius_shell" not in qmmm_parameters:
+                qmmm_parameters.update({ "radius_shell" : 20})
 
-        if "radius_active" not in qmmm_parameters:
-            qmmm_parameters.update({ "radius_active" : 8})
+            #if "radius_active" not in qmmm_parameters:
+            #    qmmm_parameters.update({ "radius_active" : 8})
 
-        if "dryrun_qmmm" not in qmmm_parameters:
-            qmmm_parameters.update({"dryrun_qmmm" : False})
+            #0 for all snapshots
+            if "nsnapshots" not in qmmm_parameters:
+                qmmm_parameters.update({ "nsnapshots" : 0})
 
-        if "opt_cycles" not in qmmm_parameters:
-            qmmm_parameters.update({ "opt_cycles" : 1000})
+            inputs["qmmm_parameters"] = Dict(dict=qmmm_parameters)
 
-        if "energy_cycles" not in qmmm_parameters:
-            qmmm_parameters.update({ "energy_cycles" : 500})
+            if 'metadata' in self.inputs.chemsh:
+                inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-        if "qmmm_opt" not in qmmm_parameters:
-            qmmm_parameters.update({ "qmmm_opt" : False})
+            #to avoid parsing output
+            inputs.update({"chargefitting_parameters" : {},
+                            "md_parameters" : {},
+                           })
 
-        #0 for all snapshots
-        if "nsnapshots" not in qmmm_parameters:
-            qmmm_parameters.update({ "nsnapshots" : 0})
-
-        if "optimisation_parameters" not in self.inputs:
-            inputs["optimisation_parameters"] = Dict({})
-
-        inputs["do_qmmm_opt"] = Bool(qmmm_parameters["qmmm_opt"])
-        inputs["qmmm_parameters"] = Dict(dict=qmmm_parameters)
-
-        if 'metadata' in self.inputs.chemsh:
-            inputs["metadata"] = self.inputs.chemsh["metadata"]
-
-        #to avoid parsing output
-        inputs.update({"chargefitting_parameters" : {},
-                        "md_parameters" : {},
-                       })
-
-        #retrieved_folder = self.ctx.md.outputs.retrieved
-        #with retrieved_folder.as_path() as folder:
-            #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
-        if "snapshots" in self.ctx.md.outputs:
-            retrieved_folder = self.ctx.md.outputs.snapshots
-            with retrieved_folder.as_path() as snapshots_dir:
-                nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
-                #0 for all snapshots. assigning a dummy large number
-                if nsnaps == 0:
-                    nsnaps = 2000
-                n=0
-                for file_path in snapshots_dir.iterdir():
-                  if n<nsnaps and file_path.is_file() and file_path.suffix == ".pun":
-                      inputs.update({ "structure" : SinglefileData(file=file_path) })
-                      future = self.submit(SolventCalculation, **inputs)
-                      future.label = SolventCalculation.default_process_label(future)
-                      future.description = (
-                      f"Solvation Calculation Node pk: {self.node.pk}"
-                      )
-                      self.to_context(qmmms=append_(future))
-                      #qmmmctx = f"qmmm{n}"
-                      n += 1
-                      #return ToContext(**{qmmmctx : future})
-
-        else:
-            if self.ctx.md.inputs.dryrunmd.value:
-                #return ExitCode(status=999, message="Snapshots not found. Full run of MD was not performed.")
-                return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
+            #retrieved_folder = self.ctx.md.outputs.retrieved
+            #with retrieved_folder.as_path() as folder:
+                #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
+            if "snapshots" in self.ctx.md.outputs:
+                retrieved_folder = self.ctx.md.outputs.snapshots
+                with retrieved_folder.as_path() as snapshots_dir:
+                    nsnaps = inputs.qmmm_parameters.get_dict()["nsnapshots"]
+                    #0 for all snapshots. assigning a dummy large number
+                    if nsnaps == 0:
+                        nsnaps = 2000
+                    n=0
+                    for file_path in snapshots_dir.iterdir():
+                      if n<nsnaps and file_path.is_file() and file_path.suffix == ".pun":
+                          inputs.update({ "structure" : SinglefileData(file=file_path) })
+                          future = self.submit(SolventCalculation, **inputs)
+                          future.label = SolventCalculation.default_process_label(future)
+                          future.description = (
+                          f"Solvation Calculation Node pk: {self.node.pk}"
+                          )
+                          self.to_context(qmmms=append_(future))
+                          #qmmmctx = f"qmmm{n}"
+                          n += 1
+                          #return ToContext(**{qmmmctx : future})
             else:
-                return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
-
+                if self.ctx.md.inputs.dryrunmd.value:
+                    #return ExitCode(status=999, message="Snapshots not found. Full run of MD was not performed.")
+                    return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
+                else:
+                    return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
         del inputs
         return
 
@@ -394,17 +387,13 @@ class SolvationWorkChain(WorkChain):
         for qmmmctx in self.ctx.qmmms:
             if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
 
-                if "shell_cut_for_qmmm" not in qmmmctx.outputs:
+                if "structure_of_qmmm_cluster" not in qmmmctx.outputs:
+                    return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
+                if "forcefield_for_qmmm_cluster" not in qmmmctx.outputs:
                     return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
 
-                if "optimised_structure" not in qmmmctx.outputs:
-                    if not qmmmctx.inputs.do_qmmm_opt.value:
-                        pass
-                    else:
-                        return(ChemShellCalculation.exit_codes.ERROR_MISSING_OPTIMISED_STRUCTURE_FILE)
-
             else:
-                    return SolventCalculation.exit_codes.ERROR_QMMM_NOT_FINISHED
+                    return SolventCalculation.exit_codes.ERROR_QMMM_PREPARATION_NOT_FINISHED
 
             status = self.finished_status(qmmmctx)
             if status:
