@@ -619,6 +619,10 @@ class SolventCalculation(ChemShellCalculation):
                script += f"keys_to_remove = [key for key in env if key.startswith(prefixes)]\n"
                script += f"for key in keys_to_remove:\n\tdel env[key]\n\n"
 
+               if 'rcut' in self.inputs.mm_parameters:
+                    rcut = self.inputs.mm_parameters.get_dict()['rcut']
+                    script += f"from chemsh.data import unitconvert\n"
+                    script += f"rcut = {rcut}*unitconvert.Angstrom2Bohr\n"
                # Creates a molecular mechanics Theory object
                mm_theory = ChemShellMMTheory[
                     self.inputs.mm_parameters.get("theory").upper()
@@ -634,12 +638,16 @@ class SolventCalculation(ChemShellCalculation):
                             continue
                         if key == "ff":
                             continue
+                        if key == "rcut":
+                            continue
                         val = self.inputs.mm_parameters.get(key)
                         if isinstance(val, str):
                             param_str += key + "='" + val + "'" + ", "
                         else:
                             param_str += key + "=" + str(val) + ", "
 
+                    if 'rcut' in self.inputs.mm_parameters:
+                        param_str += f"rcut={rcut}, "
                     #if mm_theory_key.lower() == "dl_poly":
                     numprocs = self.inputs.metadata.options.resources.get("tot_num_mpiprocs", self.tot_mpi)
                     sysmpicmd = self.inputs.sysmpi.value if self.inputs.sysmpi.value else "mpirun"
@@ -704,9 +712,7 @@ class SolventCalculation(ChemShellCalculation):
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
 
             script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
-            #script += f"shell.save('qmmm_shell.xyz', use_names=True)\n"
-            #script += f"shell.save('qmmm_shell.xyz', atom_names='names')\n"
-            script += f"shell.save('qmmm_shell.xyz', atom_names='symbols')\n"
+            script += f"shell.save('qmmm_shell.xyz')\n"
             script += f"shell.save('qmmm_shell.pun')\n"
 
             script += f"from chemsh import Forcefield\n"
