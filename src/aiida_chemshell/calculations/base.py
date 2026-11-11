@@ -482,6 +482,7 @@ class ChemShellCalculation(CalcJob):
             "tsrelative",
             "thermal",
             "save_path",
+            "active",
         )
 
     @classmethod
@@ -1047,7 +1048,9 @@ class ChemShellCalculation(CalcJob):
                         param_str += ", " + key + "='" + val + "'"
                     else:
                         param_str += ", " + key + "=" + str(val)
+                #rajany todo: now hardcoding atom_names. Think what should be the condition:
                 if qmmm_chk:
+                    param_str += ", " + 'atom_names' + "= '" + 'types' + "'"
                     script += f"mmtheory = {mm_theory_key:s}"
                     script += f"(ff='{self.inputs.force_field_file.filename:s}'"
                     script += f"{param_str:s})\n"
