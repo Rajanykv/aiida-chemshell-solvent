@@ -57,8 +57,11 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.exposed_inputs(SolventCalculation)
 
-        inputs.update({
-                 "workflow_control_flags" : {"do_optimise" : True} ,
+        default_flags = SolventCalculation.default_control_flags
+        input_flags = inputs.workflow_control_flags.get_dict()
+        control_flags = default_flags | input_flags
+        control_flags.update({
+                 "do_optimise" : True ,
         })
 
         if "qm_parameters" not in self.inputs:
@@ -83,6 +86,8 @@ class SolvationWorkChain(WorkChain):
         #to avoid parsing output
         inputs.update({"chargefitting_parameters": {},})
         inputs.update({"qm_parameters" : Dict(qm_parameters)})
+
+        inputs.workflow_control_flags = Dict(control_flags)
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -127,8 +132,11 @@ class SolvationWorkChain(WorkChain):
         else:
             return("Optimisation has not finished yet")
 
-        inputs.update({
-                    "workflow_control_flags" : {"do_charge_fit" : True },
+        default_flags = SolventCalculation.default_control_flags
+        input_flags = inputs.workflow_control_flags.get_dict()
+        control_flags = default_flags | input_flags
+        control_flags.update({
+                    "do_charge_fit" : True ,
         })
 
         if "chargefitting_parameters" not in self.inputs:
@@ -150,11 +158,15 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-        if inputs.workflow_control_flags.get_dict()["dryrun_charge"]:
+        if "dryrun_charge" in inputs.workflow_control_flags.get_dict() and inputs.workflow_control_flags.get_dict()["dryrun_charge"]:
+            control_flags.update({
+                 "do_charge_fit" : False
+            })
             inputs.update({
-                    "workflow_control_flags" : {"do_charge_fit" : False} ,
                     "chargefitting_parameters": {},
         })
+
+        inputs.workflow_control_flags = Dict(control_flags)
 
         #future = self.submit(SolventCalculation, **inputs)
         #future.label = SolventCalculation.default_process_label(future)
@@ -174,8 +186,11 @@ class SolvationWorkChain(WorkChain):
         """Perform the classical MD equillibration step."""
 
         inputs = self.chargefit()
-        inputs.update({
-                     "workflow_control_flags" :{"do_md_equillibrate" : True},
+        default_flags = SolventCalculation.default_control_flags
+        input_flags = inputs.workflow_control_flags.get_dict()
+        control_flags = default_flags | input_flags
+        control_flags.update({
+                     "do_md_equillibrate" : True,
         })
 
         if "mm_parameters" not in self.inputs:
@@ -208,8 +223,11 @@ class SolvationWorkChain(WorkChain):
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
         #avoid parsing output at each step
-        inputs.update({ "workflow_control_flags" : {"do_optimise" : False}, })
+        control_flags.update({
+                "do_optimise" : False
+        })
 
+        inputs.workflow_control_flags = Dict(control_flags)
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
         future.description = (
@@ -225,13 +243,17 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.exposed_inputs(SolventCalculation)
 
-        if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
-            inputs.update({
-                     "workflow_control_flags" : {"do_qmmm" : not self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']},
+        default_flags = SolventCalculation.default_control_flags
+        input_flags = inputs.workflow_control_flags.get_dict()
+        control_flags = default_flags | input_flags
+
+        if "dryrun_qmmm" in self.inputs.qmmm_parameters.get_dict() and self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
+            control_flags.update({
+                     "do_qmmm" : not self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']
         })
         else:
-            inputs.update({
-                     "workflow_control_flags" : { "do_qmmm" : True},
+            control_flags.update({
+                      "do_qmmm" : True
         })
 
         if 'qmmm_parameters' in self.inputs:
@@ -267,7 +289,7 @@ class SolvationWorkChain(WorkChain):
         inputs["qm_parameters"] = Dict(dict=qm_parameters)
         inputs["mm_parameters"] = Dict(dict=mm_parameters)
 
-        if inputs.workflow_control_flags.get_dict()["do_qmmm"]:
+        if control_flags["do_qmmm"]:
             inputs.update({"structure2" : self.ctx.md.inputs.structure})
             inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
 
@@ -291,6 +313,7 @@ class SolvationWorkChain(WorkChain):
                             "md_parameters" : {},
                            })
 
+            inputs.workflow_control_flags = Dict(control_flags)
             #retrieved_folder = self.ctx.md.outputs.retrieved
             #with retrieved_folder.as_path() as folder:
                 #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS

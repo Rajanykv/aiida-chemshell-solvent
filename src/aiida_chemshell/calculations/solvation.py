@@ -865,7 +865,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLVENT_XYZ}")
-        if self.inputs.workflow_control_flags.get_dict()["do_qmmm.value"]:
+        if self.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_XYZ}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
