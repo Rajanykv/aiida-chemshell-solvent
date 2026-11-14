@@ -177,15 +177,14 @@ class ChemShellParser(Parser):
                 else:
                     return self.exit_codes.ERROR_CHARGES_NOT_FOUND
 
-
-        filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-        if filepath.exists() and not self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
-            with open(filepath, "rb") as f:
-                self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
-                          label="Combined Force Field of Solute+Solvent",
-                          description = "Combined Force Field of Solute+Solvent",
-                ))
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLVENT_XYZ
+        if filepath.exists():
+            from ase.io import read
+            atoms = read(filepath, format="xyz")
+            structure = StructureData(ase=atoms)
+            structure.label = "Solvent"
+            structure.description = "Solvent box used for solvation"
+            self.out("solvent_box", structure)
 
         if SolventCalculation.FILE_SOLVATED_STRUCT in self.retrieved.list_object_names():
             from ase.io import read
@@ -193,18 +192,22 @@ class ChemShellParser(Parser):
                 atoms = read(fpath, format="xyz")
                 structure = StructureData(ase=atoms)
                 structure.label = "Solvated Structure"
-                structure.description = "Solute structure solvated in a solvent to prepare for the MD run"
-                self.out("solvated_structure", structure)
+                structure.description = "Solute solvated in solvent before Full MD"
+                self.out("solvated_structure_view", structure)
 
+        filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
+        if filepath.exists() and not self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
+            with open(filepath, "rb") as f:
+                self.out( "combined_ff_of_solute_solvent", SinglefileData(file=f, filename=filename,
+                          label="Combined Force Field",
+                          description = "Combined Force Field of Solute+Solvent",
+                ))
 
-        filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLVENT_XYZ
-        if filepath.exists():
-            from ase.io import read
-            atoms = read(filepath, format="xyz")
-            structure = StructureData(ase=atoms)
-            structure.label = "Solvent"
-            structure.description = "The solvent box used for solvation calculation"
-            self.out("solvent_box", structure)
+        folder = retrieved_tmp_folder /SolventCalculation.FOLDER_SNAPSHOTS
+        if folder.exists():
+            folder_node = FolderData(tree=folder)
+            self.out("snapshots", folder_node)
 
         filename =  SolventCalculation.FILE_QMMM_SHELL_XYZ
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL_XYZ
@@ -212,62 +215,47 @@ class ChemShellParser(Parser):
             from ase.io import read
             atoms = read(filepath, format="xyz")
             structure = StructureData(ase=atoms)
-            structure.label = "Cluster cut for QMMM"
-            structure.description = "Shell cluster cut from the solvated box for QMMM calculation"
-            self.out("structure_of_qmmm_cluster", structure)
+            structure.label = "Structure of QMMM cluster"
+            structure.description = "Structure of QMMM cluster cut from solvated box"
+            self.out("structure_view_qmmm_cluster", structure)
+
         filename =  SolventCalculation.FILE_QMMM_SHELL_PUNCH
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_QMMM_SHELL_PUNCH
         if filepath.exists():
             with open(filepath, "rb") as f:
                 self.out( "punchfile_qmmm_cluster", SinglefileData(file=f, filename=filename,
-                          label="QMMM cluster cut from the Box of Solute+Solvent",
-                          description = "QMMM cluster with Solute+Solvent",
+                          label="File of QMMM cluster",
+                          description = "File of QMMM cluster cut from solvated box",
             ))
         filename =  SolventCalculation.FILE_FF_SHELL
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_FF_SHELL
         if filepath.exists():
             with open(filepath, "rb") as f:
                 self.out( "forcefield_for_qmmm_cluster", SinglefileData(file=f, filename=filename,
-                          label="Force Field of the QMMM cluster cut from the Box of Solute+Solvent",
-                          description = "Force Field of QMMM cluster with Solute+Solvent",
+                          label="Force field of QMMM cluster",
                 ))
-        #if SolventCalculation.FOLDER_SNAPSHOTS in self.retrieved.list_object_names():
-            #descrip = f"Snapshots from the Solvation MD run \n"
-           # with self.retrieved.as_path() as folder:
-                #snapshots_dir = folder / SolventCalculation.FOLDER_SNAPSHOTS
-                #folder_node = FolderData()
-                #folder.put_object_from_tree(snapshots_dir)
-                #for file_path in snapshots_dir.glob("*.xyz"):
-                #for file_path in snapshots_dir.iterdir():
-                    #if file_path.is_file() and file_path.suffix == ".xyz":
-                        #folder.put_object_from_file(file_path)
-        folder = retrieved_tmp_folder /SolventCalculation.FOLDER_SNAPSHOTS
-        if folder.exists():
-            folder_node = FolderData(tree=folder)
-            self.out("snapshots", folder_node)
 
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_QM_INDICES_SOLUTE
         if filepath.exists():
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("simple_qm_region_solute", List(list=indices_list, label= "Simple QM region") )
-
-        filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION
-        if filepath.exists():
-            from numpy import loadtxt
-            arr = loadtxt(filepath, dtype=int)
-            indices_list = arr.tolist()
-            self.out("qmmm_active_region_index_list", List(list=indices_list, label= "QMMM active region") )
+            self.out("simple_qm_region_solute", List(list=indices_list, label= "Simple QM region for QMMM") )
 
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION_STRUCT
         if filepath.exists():
             from ase.io import read
             atoms = read(filepath, format="xyz")
             structure = StructureData(ase=atoms)
-            structure.label = "Active Region for QMMM Optimisation"
-            structure.description = "Active region cut for future QMMM optimisation calculation"
+            structure.label = "Structure of active region for QMMM Optimisation"
             self.out("qmmm_active_region_struct", structure)
+
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION
+        if filepath.exists():
+            from numpy import loadtxt
+            arr = loadtxt(filepath, dtype=int)
+            indices_list = arr.tolist()
+            self.out("qmmm_active_region_list", List(list=indices_list, label= "List of active region for QMMM") )
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""

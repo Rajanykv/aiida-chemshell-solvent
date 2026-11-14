@@ -35,7 +35,6 @@ class SolventCalculation(ChemShellCalculation):
     FOLDER_SNAPSHOTS = "_snapshots"
     FILE_SOLVATED_STRUCT = "_solvated.xyz"
     FILE_SOLUTE_SOLVENT_FF = "_solvated.ff"
-    FILE_SOLUTE_SOLVENT_STRUCT = "solute_in_solvent.pqr"
     FILE_FF_SHELL = "ff_shell_around_solute.ff"
     FILE_QMMM_SHELL_XYZ = "qmmm_shell.xyz"
     FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
@@ -116,11 +115,11 @@ class SolventCalculation(ChemShellCalculation):
 
         #rajany todo examine later correct specs
         spec.output(
-            "snapshots",
-            valid_type=FolderData,
+            "optimised_structure_file",
+            valid_type=SinglefileData,
             required=False,
             help=(
-                "Snapshots from an MD simulation."
+                "Optimised structure file to pass to next step."
             ),
         )
         spec.output(
@@ -132,51 +131,35 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
-            "solvated_structure",
-            valid_type=(StructureData, SinglefileData),
+            "solvated_structure_view",
+            valid_type=(StructureData),
             required=False,
             help=(
                 "Solvated structure before a Full MD simulation."
             ),
         )
         spec.output(
-            "solute_in_solvent_struct",
-            valid_type=(StructureData, SinglefileData),
-            required=False,
-            help=(
-                "Solvated solute in solvent structure before MD simulation."
-            ),
-        )
-        spec.output(
-            "solute_in_solvent_struct_file",
+            "combined_ff_of_solute_solvent",
             valid_type=SinglefileData,
             required=False,
             help=(
-                "Solvated solute in solvent structure before MD simulation."
+                "Combined solute+solvent force field generated."
             ),
         )
         spec.output(
-            "solute_in_solvent_ff",
-            valid_type=SinglefileData,
+            "snapshots",
+            valid_type=FolderData,
             required=False,
             help=(
-                "Combined solute and solvent force field generated."
+                "Snapshots from an MD simulation."
             ),
         )
         spec.output(
-            "optimised_structure_file",
-            valid_type=SinglefileData,
-            required=False,
-            help=(
-                "Optimised structure file to pass to next step."
-            ),
-        )
-        spec.output(
-            "structure_of_qmmm_cluster",
+            "structure_view_qmmm_cluster",
             valid_type=StructureData,
             required=False,
             help=(
-                "Shell cut form solvated box for QMMM calculations."
+                "Sructure view of shell cut from solvated box for QMMM calculations."
             ),
         )
         spec.output(
@@ -184,7 +167,7 @@ class SolventCalculation(ChemShellCalculation):
             valid_type=SinglefileData,
             required=False,
             help=(
-                "File with Shell cut form solvated box for QMMM calculations."
+                "Punch file of Shell cut form solvated box for QMMM calculations."
             ),
         )
         spec.output(
@@ -192,7 +175,7 @@ class SolventCalculation(ChemShellCalculation):
             valid_type=SinglefileData,
             required=False,
             help=(
-                "Shell cut form solvated box for QMMM calculations."
+                "Force field of Shell cut for QMMM calculations."
             ),
         )
         spec.output(
@@ -200,23 +183,23 @@ class SolventCalculation(ChemShellCalculation):
             valid_type=List,
             required=False,
             help=(
-                "Simplest QM region suggested for future QMMM calculatio."
+                "Simplest QM region for future QMMM calculation containing solute only as a list."
             ),
         )
         spec.output(
-            "qmmm_active_region_index_list",
+            "qmmm_active_region_list",
             valid_type=List,
             required=False,
             help=(
-                "Active region for future QMMM Optimisation calculation."
+                "Active region for future QMMM Optimisation calculation as a list."
             ),
         )
         spec.output(
             "qmmm_active_region_struct",
-            valid_type=StructureData| SinglefileData,
+            valid_type=StructureData,
             required=False,
             help=(
-                "Active region for future QMMM Optimisation calculation."
+                "Structure view of active region for future QMMM Optimisation calculation."
             ),
         )
         spec.exit_code(
@@ -244,7 +227,7 @@ class SolventCalculation(ChemShellCalculation):
             310,
             "ERROR_MD_SNAPSHOTS_NOT_FOUND",
             message=(
-                "MD snapshots not found. MD run has not completed."
+                "MD tnapshots not found. MD run has not completed."
             ),
         )
         spec.exit_code(
