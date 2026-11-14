@@ -57,60 +57,11 @@ class SolventCalculation(ChemShellCalculation):
         super().define(spec)
 
         spec.input(
-            "do_qmmm",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a qmmm sp calculation. (default False)"
-        )
-        spec.input(
-            "do_optimise",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do optimisation on the initial structure. (default False)"
-        )
-        spec.input(
-            "do_qmmm_opt",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = False,
-             help = "Whether to do a QMMM optimisation. (default False)"
-        )
-        spec.input(
-            "do_charge_fit",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a QM RESP charge fitting(default False)"
-        )
-        spec.input(
-            "do_md_equillibrate",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do an MD equillibration step (default False)"
-        )
-        spec.input(
-            "dryrunmd",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a dry run with the MD parameters(default False)"
-        )
-        spec.input(
-            "dryrun_opt",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a dry run of optimisation step in solvation(default False)"
-        )
-        spec.input(
-            "dryrun_charge",
-             valid_type = Bool,
-             default=lambda: Bool(False),
-             required = True,
-             help = "Whether to do a dry run of charge fitting step in solvation(default False)"
+            "workflow_control_flags",
+            valid_type = Dict,
+            default=lambda: Dict(dict=cls.default_flags),
+            required = True,
+            help = "Set a number of flags for easy calculation selection"
         )
         spec.input(
             "sysmpi",
@@ -334,6 +285,18 @@ class SolventCalculation(ChemShellCalculation):
 
         return
 
+    default_control_flags = {
+            "do_qmmm" : False, # "Whether to do a qmmm sp calculation. (default False)"
+            "do_optimise" : False, #"Whether to do optimisation on the initial structure. (default False)"
+            "do_qmmm_opt" : False, #"Whether to do a QMMM optimisation. (default False)"
+            "do_charge_fit" : False, #"Whether to do a QM RESP charge fitting(default False)"
+            "do_md_equillibrate" : False, #"Whether to do an MD equillibration step (default False)"
+            "dryrunmd" : False, #"Whether to do a dry run with the MD parameters(default False)"
+            "dryrun_opt" : False, #"Whether to do a dry run of optimisation step in solvation(default False)"
+            "dryrun_charge" : False, #"Whether to do a dry run of charge fitting step in solvation(default False)"
+
+        }
+
     @classmethod
     def validate_inputs_solvent(cls, value: SinglefileData | None, _) -> str | None:
         """Validate the inputs provided to the WorkChain."""
@@ -493,23 +456,23 @@ class SolventCalculation(ChemShellCalculation):
         str
             The process label based on what inputs have been provided.
         """
-        if node.inputs.do_charge_fit.value:
-            if not node.inputs.do_md_equillibrate.value:
+        if node.inputs.workflow_control_flags.get_dict()["do_charge_fit"]:
+            if not node.inputs.workflow_control_flags.get_dict()["do_md_equillibrate"]:
                 job_str = "_ESP_Step"
-        if node.inputs.do_md_equillibrate.value:
-            if node.inputs.do_charge_fit.value:
+        if node.inputs.workflow_control_flags.get_dict()["do_md_equillibrate"]:
+            if node.inputs.workflow_control_flags.get_dict()["do_charge_fit"]:
                 job_str = "_ESP+"
             else:
                 job_str = ""
             job_str += "MD"
-            if node.inputs.dryrunmd.value:
+            if node.inputs.workflow_control_flags.get_dict()["dryrunmd"]:
                 job_str += "_Initialisation"
             else:
                 job_str += "_FullRun"
             job_str += "_Step"
-        elif node.inputs.do_qmmm.value:
+        elif node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             job_str = "_QMMM_Prep_Step"
-        elif node.inputs.do_optimise.value:
+        elif node.inputs.workflow_control_flags.get_dict()["do_optimise"]:
             job_str = "_OptStep"
         else:
             job_str = "_SPStep"
@@ -566,7 +529,7 @@ class SolventCalculation(ChemShellCalculation):
                 script += f"from chemsh import {qm_theory_key:s}\n"
                 script += f"qmtheory = {qm_theory_key:s}("
 
-                if not self.inputs.do_qmmm.value:
+                if not self.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
                     script += f"frag=structure, "
 
                 param_str = ""
@@ -582,7 +545,7 @@ class SolventCalculation(ChemShellCalculation):
                 script += param_str + ")\n"
 
         script_opt = ""
-        if self.inputs.do_optimise.value:
+        if self.inputs.workflow_control_flags.get_dict()["do_optimise"]:
             # Run a geometry optimisation using DL_FIND
             #rajany todo- determine if mm opt or qmmmopt option is necessary in the workflow
 
@@ -598,7 +561,7 @@ class SolventCalculation(ChemShellCalculation):
                         opt_str += ", " + key + "="
                         opt_str += str(self.inputs.optimisation_parameters.get(key))
             script_opt += opt_str + ")\n"
-            if self.inputs.dryrun_opt:
+            if self.inputs.workflow_control_flags.get_dict()["dryrun_opt"]:
                     script_opt += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_opt += "job.run(dryrun=False)\njob.result.save()\n"
@@ -612,7 +575,7 @@ class SolventCalculation(ChemShellCalculation):
             return script
 
         script_ch = ""
-        if self.inputs.do_charge_fit.value:
+        if self.inputs.workflow_control_flags.get_dict()["do_charge_fit"]:
             # Run a Charge fitting task
             script_ch += "from chemsh import ChargeFitting\n"
             fit_str = f"job = ChargeFitting(theory = qmtheory"
@@ -625,7 +588,7 @@ class SolventCalculation(ChemShellCalculation):
                         fit_str += ", " + key + "="
                         fit_str += str(self.inputs.chargefitting_parameters.get(key))
             script_ch += fit_str + ")\n"
-            if self.inputs.dryrun_charge:
+            if self.inputs.workflow_control_flags.get_dict()["dryrun_charge"]:
                     script_ch += "job.run(dryrun=True)\njob.result.save()\n"
             else:
                     script_ch += "job.run(dryrun=False)\njob.result.save()\n"
@@ -636,7 +599,7 @@ class SolventCalculation(ChemShellCalculation):
             script    += script_ch
 
         # Perform an MD
-        if self.inputs.do_md_equillibrate.value:
+        if self.inputs.workflow_control_flags.get_dict()["do_md_equillibrate"]:
             if "mm_parameters" not in self.inputs:
                 return("mm_parameters not provided for md step")
             else:
@@ -715,7 +678,7 @@ class SolventCalculation(ChemShellCalculation):
                         script_md += str(self.inputs.md_parameters.get(key))
             script_md += ")\n"
 
-            if self.inputs.dryrunmd.value:
+            if self.inputs.workflow_control_flags.get_dict()["dryrunmd"]:
                     script_md += "job.run(dryrun=True)\n"
             else:
                     script_md += "job.run(dryrun=False)\n"
@@ -725,7 +688,7 @@ class SolventCalculation(ChemShellCalculation):
 
  # Prepare for a (possible) subsequent QMMM calculation
 
-        if self.inputs.do_qmmm.value:
+        if self.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             origfile = Path(self.inputs.structure2.filename)
             ext = origfile.suffix
             origfilename = origfile.name
@@ -902,7 +865,7 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_list.append(f"{SolventCalculation.FILE_SOLVATED_STRUCT}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLUTE_SOLVENT_FF}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_SOLVENT_XYZ}")
-        if self.inputs.do_qmmm.value:
+        if self.inputs.workflow_control_flags.get_dict()["do_qmmm.value"]:
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_XYZ}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")

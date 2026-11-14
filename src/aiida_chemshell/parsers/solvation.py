@@ -28,12 +28,12 @@ class ChemShellParser(Parser):
             #md does not have results object
             if "md_parameters" in self.node.inputs and self.node.inputs.md_parameters.get_dict():
                 pass
-            if self.node.inputs.do_qmmm.value:
+            if self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
                 pass
             else:
                 return self.exit_codes.ERROR_RESULTS_FILE_NOT_FOUND
 
-        if not self.node.inputs.do_md_equillibrate.value and not self.node.inputs.do_qmmm.value:
+        if not self.node.inputs.workflow_control_flags.get_dict()["do_md_equillibrate"] and not self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
         # Read the 'json' formatted results file
             with open(results_path, "rb") as f:
                 results = json.loads(f.read())
@@ -90,8 +90,8 @@ class ChemShellParser(Parser):
         # If the calculation was a geometry optimisation, store the optimised structure
         if "optimisation_parameters" in self.node.inputs:
             #added solvation qmmm separately.
-            if ( self.node.inputs.do_optimise.value or
-               ( "do_qmmm_opt" in self.node.inputs and self.node.inputs.do_qmmm_opt.value ) ):
+            if ( self.node.inputs.workflow_control_flags.get_dict()["do_optimise"] or
+               self.node.inputs.workflow_control_flags.get_dict()["do_qmmm_opt"] ) :
                 dl_find_path = retrieved_tmp_folder / ChemShellCalculation.FILE_DLFIND
                 if self.node.inputs.optimisation_parameters.get("thermal", False):
                     self.parse_vibrational_analysis(
@@ -180,7 +180,7 @@ class ChemShellParser(Parser):
 
         filename = SolventCalculation.FILE_SOLUTE_SOLVENT_FF
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_SOLUTE_SOLVENT_FF
-        if filepath.exists() and not self.node.inputs.do_qmmm.value:
+        if filepath.exists() and not self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             with open(filepath, "rb") as f:
                 self.out( "solute_in_solvent_ff", SinglefileData(file=f, filename=filename,
                           label="Combined Force Field of Solute+Solvent",

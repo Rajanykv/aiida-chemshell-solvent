@@ -58,7 +58,7 @@ class SolvationWorkChain(WorkChain):
         inputs = self.exposed_inputs(SolventCalculation)
 
         inputs.update({
-                  "do_optimise": Bool(True),
+                 "workflow_control_flags" : {"do_optimise" : True} ,
         })
 
         if "qm_parameters" not in self.inputs:
@@ -128,7 +128,7 @@ class SolvationWorkChain(WorkChain):
             return("Optimisation has not finished yet")
 
         inputs.update({
-                    "do_charge_fit" :  Bool(True),
+                    "workflow_control_flags" : {"do_charge_fit" : True },
         })
 
         if "chargefitting_parameters" not in self.inputs:
@@ -150,9 +150,9 @@ class SolvationWorkChain(WorkChain):
         if 'metadata' in self.inputs.chemsh:
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
-        if "dryrun_charge" in inputs and inputs.dryrun_charge.value:
+        if inputs.workflow_control_flags.get_dict()["dryrun_charge"]:
             inputs.update({
-                    "do_charge_fit" :  Bool(False),
+                    "workflow_control_flags" : {"do_charge_fit" : False} ,
                     "chargefitting_parameters": {},
         })
 
@@ -175,7 +175,7 @@ class SolvationWorkChain(WorkChain):
 
         inputs = self.chargefit()
         inputs.update({
-                     "do_md_equillibrate" : Bool(True),
+                     "workflow_control_flags" :{"do_md_equillibrate" : True},
         })
 
         if "mm_parameters" not in self.inputs:
@@ -208,7 +208,7 @@ class SolvationWorkChain(WorkChain):
             inputs["metadata"] = self.inputs.chemsh["metadata"]
 
         #avoid parsing output at each step
-        inputs.update({ "do_optimise" : Bool(False), })
+        inputs.update({ "workflow_control_flags" : {"do_optimise" : False}, })
 
         future = self.submit(SolventCalculation, **inputs)
         future.label = SolventCalculation.default_process_label(future)
@@ -227,11 +227,11 @@ class SolvationWorkChain(WorkChain):
 
         if self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']:
             inputs.update({
-                     "do_qmmm" : Bool(not self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']),
+                     "workflow_control_flags" : {"do_qmmm" : not self.inputs.qmmm_parameters.get_dict()['dryrun_qmmm']},
         })
         else:
             inputs.update({
-                     "do_qmmm" : Bool(True),
+                     "workflow_control_flags" : { "do_qmmm" : True},
         })
 
         if 'qmmm_parameters' in self.inputs:
@@ -267,7 +267,7 @@ class SolvationWorkChain(WorkChain):
         inputs["qm_parameters"] = Dict(dict=qm_parameters)
         inputs["mm_parameters"] = Dict(dict=mm_parameters)
 
-        if inputs.do_qmmm.value:
+        if inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             inputs.update({"structure2" : self.ctx.md.inputs.structure})
             inputs.update({"force_field_file" : self.ctx.md.outputs.solute_in_solvent_ff})
 
@@ -315,7 +315,7 @@ class SolvationWorkChain(WorkChain):
                           n += 1
                           #return ToContext(**{qmmmctx : future})
             else:
-                if self.ctx.md.inputs.dryrunmd.value:
+                if self.ctx.md.inputs.workflow_control_flags.get_dict()["dryrunmd"]:
                     #return ExitCode(status=999, message="Snapshots not found. Full run of MD was not performed.")
                     return SolventCalculation.exit_codes.ERROR_MD_NOT_FINISHED
                 else:
@@ -355,10 +355,10 @@ class SolvationWorkChain(WorkChain):
         return
 
     def result_md(self):
-        if "do_md_equillibrate" in self.ctx.md.inputs and self.ctx.md.is_finished:
+        if self.ctx.md.inputs.workflow_control_flags.get_dict()["do_md_equillibrate"] and self.ctx.md.is_finished:
 
             #if SolventCalculation.FILE_SOLVATED_STRUCT in self.ctx.md.outputs.retrieved.list_object_names():
-            if not self.ctx.md.inputs.dryrun_charge.value:
+            if not self.ctx.md.inputs.workflow_control_flags.get_dict()["dryrun_charge"]:
                 if not "fitted_charges" in self.ctx.md.outputs:
                     if not "charges_file" in self.ctx.md.outputs:
                         return( ChemShellCalculation.exit_codes.ERROR_CHARGES_NOT_FOUND)
@@ -368,7 +368,7 @@ class SolvationWorkChain(WorkChain):
             if not "solute_in_solvent_ff" in self.ctx.md.outputs:
                 return( SolventCalculation.exit_codes.ERROR_FF_FOR_SOLUTE_IN_SOLVENT_NOT_FOUND)
             if "snapshots" not in self.ctx.md.outputs:
-                if self.ctx.md.inputs.dryrunmd.value:
+                if self.ctx.md.inputs.workflow_control_flags.get_dict()["dryrunmd"]:
                     pass
                 else:
                     return SolventCalculation.exit_codes.ERROR_MD_SNAPSHOTS_NOT_FOUND
@@ -385,7 +385,7 @@ class SolvationWorkChain(WorkChain):
         if "qmmms" not in self.ctx:
             return
         for qmmmctx in self.ctx.qmmms:
-            if "do_qmmm" in qmmmctx.inputs and qmmmctx.is_finished:
+            if qmmmctx.inputs.workflow_control_flags.get_dict()["do_qmmm"] and qmmmctx.is_finished:
 
                 if "structure_of_qmmm_cluster" not in qmmmctx.outputs:
                     return SolventCalculation.exit_codes.ERROR_QMMM_SHELL_PREPARATION_FAILED
@@ -399,11 +399,6 @@ class SolvationWorkChain(WorkChain):
             if status:
                 self.report(f"Error Encountered. Proceeding to next.. Error: {status}")
         return
-
-    #if_(cls.not_md_dryrun)(
-    #   )
-    def not_md_dryrun(self):
-        return not self.inputs.dryrunmd.value
 
     #rajany diagnostics
     def finished_status(self, calc_node):
