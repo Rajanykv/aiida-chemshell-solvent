@@ -64,7 +64,10 @@ class GeometryOptimisationWorkChain(WorkChain):
             "vibrational_modes",
             valid_type=ArrayData,
             required=False,
-            help="The calculated vibrational modes for the optimised structure.",
+            help=(
+                "The calculated vibrational modes for the optimised structure. A "
+                "negative frequency indicates an imaginary frequency."
+            ),
         )
 
         ## Workflow ##
@@ -107,6 +110,9 @@ class GeometryOptimisationWorkChain(WorkChain):
             inputs["optimisation_parameters"] = Dict({})
         if "mlip_model" in self.inputs:
             inputs["optimisation_parameters"]["save_path"] = True
+
+        if "maxcycle" not in inputs["optimisation_parameters"]:
+            inputs["optimisation_parameters"]["maxcycle"] = 300
 
         future = self.submit(ChemShellCalculation, **inputs)
         future.label = ChemShellCalculation.default_process_label(future)

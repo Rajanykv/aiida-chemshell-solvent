@@ -248,7 +248,10 @@ class ChemShellCalculation(CalcJob):
             "vibrational_modes",
             valid_type=ArrayData,
             required=False,
-            help="The calculated vibrational modes of the system.",
+            help=(
+                "The calculated vibrational modes of the system. A negative "
+                "frequency indicates an imaginary frequency."
+            ),
         )
         spec.output(
             "fitted_charges",
@@ -948,6 +951,8 @@ class ChemShellCalculation(CalcJob):
         if "optimisation_parameters" in node.inputs:
             if node.inputs.optimisation_parameters.get("thermal", False):
                 return "ChemShell_Vibrational_Frequencies" + theory_key
+            if node.inputs.optimisation_parameters.get("neb", "no") != "no":
+                return "ChemShell_NEB" + theory_key
             return "ChemShell_Geometry_Optimisation" + theory_key
         if "chargefitting_parameters" in node.inputs:
             return "ChemShell_Charge_Fitting" + theory_key
@@ -999,7 +1004,6 @@ class ChemShellCalculation(CalcJob):
                 fname = self.inputs.structure2.filename
             else:
                 fname = ChemShellCalculation.FILE_TMP_STRUCTURE2
-            print(fname)
             script += f"frg2 = Fragment(coords='{fname:s}')\n"
 
         ## Setup Theory objects
@@ -1236,7 +1240,7 @@ class ChemShellCalculation(CalcJob):
         # Copy data for second input fragment if required
         if "structure2" in self.inputs:
             if isinstance(self.inputs.structure2, StructureData):
-                with folder.open(ChemShellCalculation.FILE_TMP_STRUCTURE, "wb") as f:
+                with folder.open(ChemShellCalculation.FILE_TMP_STRUCTURE2, "wb") as f:
                     f.write(self.inputs.structure2._prepare_xyz()[0])
             else:
                 calc_info.local_copy_list.append(
