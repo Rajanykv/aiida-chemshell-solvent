@@ -259,6 +259,10 @@ class SolvationWorkChain(WorkChain):
             control_flags.update({
                       "do_qmmm" : True
         })
+        if "dryrunmd" in input_flags and input_flags['dryrunmd']:
+            control_flags.update({
+                      "do_qmmm" : False
+        })
 
         if 'qmmm_parameters' in self.inputs:
             qmmm_parameters = self.inputs.qmmm_parameters.get_dict()
