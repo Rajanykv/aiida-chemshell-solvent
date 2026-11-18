@@ -200,8 +200,8 @@ class ChemShellParser(Parser):
         if filepath.exists() and not self.node.inputs.workflow_control_flags.get_dict()["do_qmmm"]:
             with open(filepath, "rb") as f:
                 self.out( "combined_ff_of_solute_solvent", SinglefileData(file=f, filename=filename,
-                          label="Combined Force Field",
-                          description = "Combined Force Field of Solute+Solvent",
+                          label="Force Field for whole Box",
+                          description = "Force Field for Box with Solute+Solvent",
                 ))
 
         folder = retrieved_tmp_folder /SolventCalculation.FOLDER_SNAPSHOTS
@@ -216,7 +216,7 @@ class ChemShellParser(Parser):
             atoms = read(filepath, format="xyz")
             structure = StructureData(ase=atoms)
             structure.label = "Structure of QMMM cluster"
-            structure.description = "Structure of QMMM cluster cut from solvated box"
+            structure.description = "QMMM cluster cut from solvated box"
             self.out("structure_view_qmmm_cluster", structure)
 
         filename =  SolventCalculation.FILE_QMMM_SHELL_PUNCH
@@ -225,7 +225,7 @@ class ChemShellParser(Parser):
             with open(filepath, "rb") as f:
                 self.out( "punchfile_qmmm_cluster", SinglefileData(file=f, filename=filename,
                           label="File of QMMM cluster",
-                          description = "File of QMMM cluster cut from solvated box",
+                          description = "QMMM cluster cut from solvated box as a file",
             ))
         filename =  SolventCalculation.FILE_FF_SHELL
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_FF_SHELL
@@ -263,7 +263,7 @@ class ChemShellParser(Parser):
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("qmmm_active_region_list", List(list=indices_list, label= "List of active region for QMMM") )
+            self.out("qmmm_active_region_list", List(list=indices_list, label= "Active region for QMMM") )
 
     def parse_vibrational_analysis(self, stdout: str) -> None:
         """Extract the vibrational analysis from ChemShell output log."""
