@@ -300,8 +300,8 @@ class SolvationWorkChain(WorkChain):
             inputs["qm_parameters"] = Dict(dict=qm_parameters)
             inputs["mm_parameters"] = Dict(dict=mm_parameters)
 
-            if "radius_shell" not in qmmm_parameters:
-                qmmm_parameters.update({ "radius_shell" : 20})
+            if "radius_whole_region" not in qmmm_parameters:
+                qmmm_parameters.update({ "radius_whole_region" : 20})
 
             if "radius_active" not in qmmm_parameters:
                 qmmm_parameters.update({ "radius_active" : 8})

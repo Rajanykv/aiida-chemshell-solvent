@@ -35,13 +35,14 @@ class SolventCalculation(ChemShellCalculation):
     FOLDER_SNAPSHOTS = "_snapshots"
     FILE_SOLVATED_STRUCT = "_solvated.xyz"
     FILE_SOLUTE_SOLVENT_FF = "_solvated.ff"
-    FILE_FF_SHELL = "ff_shell_around_solute.ff"
-    FILE_QMMM_SHELL_XYZ = "qmmm_shell.xyz"
-    FILE_QMMM_SHELL_PUNCH = "qmmm_shell.pun"
+    FILE_FF_SHELL = "ff_qmmm_sphere.ff"
+    FILE_QMMM_SHELL_XYZ = "qmmm_whole.xyz"
+    FILE_QMMM_SHELL_PUNCH = "qmmm_whole.pun"
     FILE_SOLVENT_XYZ = "_solvent.xyz"
+    FILE_QM_INDICES = "qm_region_for_qmmm.txt"
     FILE_ACTIVE_REGION = "qmmm_opt_active_region.txt"
     FILE_ACTIVE_REGION_STRUCT = "qmmm_opt_active_region.xyz"
-    FILE_QM_INDICES_SOLUTE = "qmmm_region_simple_solute.txt"
+    FILE_QM_REGION_STRUCT = "qm_region_for_qmmm.xyz"
 
     @classmethod
     def define(cls, spec: CalcJobProcessSpec) -> None:
@@ -179,11 +180,19 @@ class SolventCalculation(ChemShellCalculation):
             ),
         )
         spec.output(
-            "simple_qm_region_solute",
+            "qm_region_for_qmmm_list",
             valid_type=List,
             required=False,
             help=(
-                "Simplest QM region for future QMMM calculation containing solute only as a list."
+                "QM region for future QMMM calculation as a list."
+            ),
+        )
+        spec.output(
+            "qm_region_for_qmmm_struct",
+            valid_type=StructureData,
+            required=False,
+            help=(
+                "QM region for future QMMM calculation as a Structure."
             ),
         )
         spec.output(
@@ -310,7 +319,7 @@ class SolventCalculation(ChemShellCalculation):
                 'npt'            : dict,
                 'nvt'            : dict,
                 'production'     : dict,
-                'minimise'       : dict,
+                'minimise'       : dict|bool,
                 'neutralise'     : dict,
                 'solute'         : str,
                 'solutes_dist'   : float,
@@ -320,7 +329,7 @@ class SolventCalculation(ChemShellCalculation):
                 'fixed_npt'      : str,
                 'freeze_solute'  : bool,
                 'max_ncycles'    : int,
-
+                'timestep'       : float,
         }
     @classmethod
     def validate_md_parameters(cls, value: Dict | None, _) -> str | None:
@@ -679,27 +688,35 @@ class SolventCalculation(ChemShellCalculation):
             script += f"solute_frag = Fragment(coords='{new_filename:s}')\n"
             script += f"snapshot_frag = structure\n"
             script += f"natoms = solute_frag.natoms\n"
-            script += f"indices_qm_region = range(natoms)\n"
-
-            script += f"indices_shell = snapshot_frag.selectByShell(around = indices_qm_region,\n\t"
-            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_shell']}, unit='angstrom', boundary='incl', convex=False)\n"
+            script += f"solute_indices = range(natoms)\n"
+            script += f"indices_shell = snapshot_frag.selectByShell(around = solute_indices,\n\t"
+            script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_whole_region']}, unit='angstrom', boundary='incl', convex=False)\n"
 
             script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
-            script += f"shell.save('qmmm_shell.xyz')\n"
-            script += f"shell.save('qmmm_shell.pun')\n"
+            script += f"shell.save('qmmm_whole.xyz')\n"
+            script += f"shell.save('qmmm_whole.pun')\n"
 
             script += f"from chemsh import Forcefield\n"
             script += f"ff = Forcefield(input='{self.inputs.force_field_file.filename:s}')\n"
             script += f"ff_cut = ff.getSelected(indices_shell)\n"
-            script += f"ff_cut.write('ff_shell_around_solute.ff')\n"
+            script += f"ff_cut.write('ff_qmmm_sphere.ff')\n"
 
-            script += f"indices_active_region = shell.selectByShell(around=indices_qm_region,\n\t"
+            if not self.inputs.qmmm_parameters.get_dict()['radius_qm_region']:
+                script += f"indices_qm_region = solute_indices\n"
+            else:
+                script += f"indices_qm_region = shell.selectByShell(around = solute_indices,\n\t"
+                script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_qm_region']}, "
+                script += f"unit='angstrom', boundary='incl', convex=False)\n"
+
+            script += f"indices_active_region = shell.selectByShell(around=solute_indices,\n\t"
             script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_active']}, unit='angstrom', boundary='incl', convex=False)\n"
             script += f"from numpy import savetxt\n"
-            script += f"savetxt('{SolventCalculation.FILE_QM_INDICES_SOLUTE}', indices_qm_region, delimiter=' ', fmt='%d')\n"
+            script += f"savetxt('{SolventCalculation.FILE_QM_INDICES}', indices_qm_region, delimiter=' ', fmt='%d')\n"
             script += f"savetxt('{SolventCalculation.FILE_ACTIVE_REGION}', indices_active_region, delimiter=' ', fmt='%d')\n"
             script += f"cut_active = shell.getSelected(indices_active_region)\n"
             script += f"cut_active.save('{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}')\n"
+            script += f"qmregion = shell.getSelected(indices_qm_region)\n"
+            script += f"qmregion.save('{SolventCalculation.FILE_QM_REGION_STRUCT}')\n"
 
             #if job_str == "Opt":
             #    script += f",\n\t maxcycle={self.inputs.qmmm_parameters.get_dict()['opt_cycles']}, maxene={self.inputs.qmmm_parameters.get_dict()['energy_cycles']}"
@@ -852,8 +869,9 @@ class SolventCalculation(ChemShellCalculation):
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_FF_SHELL}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_XYZ}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QMMM_SHELL_PUNCH}")
-            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QM_INDICES_SOLUTE}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QM_INDICES}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_ACTIVE_REGION}")
+            calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_QM_REGION_STRUCT}")
             calc_info.retrieve_temporary_list.append(f"{SolventCalculation.FILE_ACTIVE_REGION_STRUCT}")
 
         return calc_info

@@ -235,12 +235,20 @@ class ChemShellParser(Parser):
                           label="Force field of QMMM cluster",
                 ))
 
-        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QM_INDICES_SOLUTE
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QM_INDICES
         if filepath.exists():
             from numpy import loadtxt
             arr = loadtxt(filepath, dtype=int)
             indices_list = arr.tolist()
-            self.out("simple_qm_region_solute", List(list=indices_list, label= "Simple QM region for QMMM") )
+            self.out("qm_region_for_qmmm_list", List(list=indices_list, label= "QM region for QMMM") )
+
+        filepath = retrieved_tmp_folder / SolventCalculation.FILE_QM_REGION_STRUCT
+        if filepath.exists():
+            from ase.io import read
+            atoms = read(filepath, format="xyz")
+            structure = StructureData(ase=atoms)
+            structure.label = "Structure of QM region for QMMM calculation"
+            self.out("qm_region_for_qmmm_struct", structure)
 
         filepath = retrieved_tmp_folder / SolventCalculation.FILE_ACTIVE_REGION_STRUCT
         if filepath.exists():
