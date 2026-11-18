@@ -690,7 +690,7 @@ class SolventCalculation(ChemShellCalculation):
             script += f"natoms = solute_frag.natoms\n"
             script += f"solute_indices = range(natoms)\n"
             script += f"indices_shell = snapshot_frag.selectByRadius({self.inputs.qmmm_parameters.get_dict()['radius_whole_region']},\n\t"
-            script += f"unit='angstrom', boundary='incl')\n"
+            script += f"centre= 0, unit='angstrom', boundary='incl')\n"
 
             script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
             script += f"shell.save('qmmm_whole.xyz')\n"
