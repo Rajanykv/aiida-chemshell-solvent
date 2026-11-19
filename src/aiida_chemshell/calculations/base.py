@@ -552,6 +552,7 @@ class ChemShellCalculation(CalcJob):
             "dispersion": str,
             "atom_names": str,
             "mult": int|float,
+            "harmonic" : bool,
         }
 
     @classmethod
