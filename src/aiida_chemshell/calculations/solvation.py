@@ -690,7 +690,7 @@ class SolventCalculation(ChemShellCalculation):
             script += f"natoms = solute_frag.natoms\n"
             script += f"solute_indices = range(natoms)\n"
             script += f"indices_shell = snapshot_frag.selectByRadius({self.inputs.qmmm_parameters.get_dict()['radius_whole_region']},\n\t"
-            script += f"centre= 0, unit='angstrom', boundary='incl')\n"
+            script += f"unit='angstrom', boundary='incl')\n"
 
             script += f"shell = snapshot_frag.getSelected(indices_shell)\n"
             script += f"shell.save('qmmm_whole.xyz')\n"
@@ -708,7 +708,7 @@ class SolventCalculation(ChemShellCalculation):
                 script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_qm_region']}, "
                 script += f"unit='angstrom', boundary='incl', convex=False)\n"
 
-            script += f"indices_active_region = shell.selectByRadius({self.inputs.qmmm_parameters.get_dict()['radius_active']}, centre=0,\n\t"
+            script += f"indices_active_region = shell.selectByRadius({self.inputs.qmmm_parameters.get_dict()['radius_active']},\n\t"
             script += f"unit='angstrom', boundary='incl')\n"
             script += f"from numpy import savetxt\n"
             script += f"savetxt('{SolventCalculation.FILE_QM_INDICES}', indices_qm_region, delimiter=' ', fmt='%d')\n"
