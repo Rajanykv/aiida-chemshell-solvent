@@ -701,12 +701,12 @@ class SolventCalculation(ChemShellCalculation):
             script += f"ff_cut = ff.getSelected(indices_shell)\n"
             script += f"ff_cut.write('ff_qmmm_sphere.ff')\n"
 
-            if 'radius_qm_region' in self.inputs.qmmm_parameters.get_dict() and not self.inputs.qmmm_parameters.get_dict()['radius_qm_region']:
-                script += f"indices_qm_region = solute_indices\n"
-            else:
+            if 'radius_qm_region' in self.inputs.qmmm_parameters.get_dict() and self.inputs.qmmm_parameters.get_dict()['radius_qm_region']:
                 script += f"indices_qm_region = shell.selectByShell(around = solute_indices,\n\t"
                 script += f"padding={self.inputs.qmmm_parameters.get_dict()['radius_qm_region']}, "
                 script += f"unit='angstrom', boundary='incl', convex=False)\n"
+            else:
+                script += f"indices_qm_region = solute_indices\n"
 
             script += f"indices_active_region = shell.selectByRadius({self.inputs.qmmm_parameters.get_dict()['radius_active']},\n\t"
             script += f"unit='angstrom', boundary='incl')\n"
