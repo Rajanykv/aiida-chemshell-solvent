@@ -316,20 +316,20 @@ class SolventCalculation(ChemShellCalculation):
         #rajany todo,
         return {
                 'driver'         : str,
-                'npt'            : dict,
                 'nvt'            : dict,
-                'production'     : dict,
+                'npt'            : dict,
                 'minimise'       : dict|bool,
+                'production'     : dict,
+                'padding'        : float,
+                'timestep'       : float,
                 'neutralise'     : dict,
                 'solute'         : str,
                 'solutes_dist'   : float,
                 'solvent'        : str,
-                'padding'        : float,
                 'nsnapshots'     : int,
                 'fixed_npt'      : str,
                 'freeze_solute'  : bool,
                 'max_ncycles'    : int,
-                'timestep'       : float,
         }
     @classmethod
     def validate_md_parameters(cls, value: Dict | None, _) -> str | None:
